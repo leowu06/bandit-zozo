@@ -1,0 +1,29 @@
+# Data (too big for GitHub, see README)
+data/*
+!data/.gitkeep
+
+# Generated tables and figures
+output/*
+!output/.gitkeep
+
+# Python
+__pycache__/
+*.py[cod]
+.venv/
+venv/
+.ipynb_checkpoints/
+
+# LaTeX build files
+report/*.aux
+report/*.log
+report/*.out
+report/*.toc
+report/*.fls
+report/*.fdb_latexmk
+report/*.synctex.gz
+report/*.bbl
+report/*.blg
+
+# OS and editor
+.DS_Store
+.vscode/
