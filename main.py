@@ -31,6 +31,10 @@ N_TUNE = 5   # repetitions per setting in the tuning grid (keeps run time down)
 TS_PRIOR_B = [1, 30, 100, 300, 1000]        # prior Beta(1, b), prior mean 1/(1+b)
 UCB_C = [1, 0.1, 0.03, 0.01, 0.003, 0.001]  # scale of the UCB bonus
 
+# Settings tried in question (b)
+BATCH_SIZES = [1, 10, 100, 500, 1000, 5000]  # matched rows collected before each update
+UCB_C_FOR_B = 0.01  # UCB with c = 1 does not learn (see question c), so use a working c
+
 
 def header(label):
     print(f"\n--- {label} ---")
@@ -110,7 +114,7 @@ def mean_curve(runs):
 
 
 def section_a(name, df):
-    """Question (a), first part: Thompson Sampling against Random and Oracle."""
+    """Question (a): Thompson Sampling and UCB against Random and Oracle."""
     K = df["item_id"].nunique()
     true_ctr = df.groupby("item_id")["click"].mean()
     best = true_ctr.idxmax()
@@ -146,6 +150,40 @@ def section_a(name, df):
     print(f"\nFigure 3 ({name}) saved: output/{fig_path.name}")
 
 
+def section_b(name, df):
+    """Question (b): what happens when the policy only learns in batches?
+
+    With batch size B the policy keeps its beliefs fixed for B matched rows,
+    then receives all B results at once. B = 1 is learning after every row.
+    """
+    tag = name.replace(" ", "")
+    K = df["item_id"].nunique()
+    random_ctr = summarise(run_many(lambda rng: RandomPolicy(K, rng), df, n_runs=N_RUNS))["ctr_mean"]
+
+    policies = {
+        "TS Beta(1,1)": lambda rng: ThompsonSampling(K, rng),
+        f"UCB c={UCB_C_FOR_B}": lambda rng: UCB(K, rng, c=UCB_C_FOR_B),
+    }
+    rows = []
+    for batch in BATCH_SIZES:
+        for label, make in policies.items():
+            s = summarise(run_many(make, df, n_runs=N_TUNE, batch_size=batch))
+            s["policy"], s["batch_size"] = label, batch
+            rows.append(s)
+    tab = pd.DataFrame(rows)
+
+    header(f"Table 10 ({name}): CTR for different batch sizes, {N_TUNE} runs each")
+    cols = ["policy", "batch_size", "mean_matched", "mean_clicks", "ctr_mean", "ctr_sd_runs", "se_binomial"]
+    t10 = tab[cols].round(5)
+    print(t10.to_string(index=False))
+    print(f"Random policy on the same data: {random_ctr:.5f}")
+    save_table(t10, f"table_10_{tag}", index=False)
+
+    fig_path = OUT / f"figure_4_batch_{tag}.png"
+    ex.plot_batch(tab, random_ctr, fig_path)
+    print(f"\nFigure 4 ({name}) saved: output/{fig_path.name}")
+
+
 def tune_grid(df, n_runs):
     """Run every TS prior and every UCB constant once through replay."""
     K = df["item_id"].nunique()
@@ -171,19 +209,19 @@ def section_c(name, df):
     ts_tab, ucb_tab = tune_grid(df, N_TUNE)
     cols = ["mean_matched", "mean_clicks", "ctr_mean", "ctr_sd_runs", "se_binomial"]
 
-    header(f"Table 10 ({name}): TS with different priors Beta(1, b), {N_TUNE} runs each")
-    t10 = ts_tab[["setting", "prior_mean_percent"] + cols].round(5)
-    print(t10.to_string(index=False))
-    save_table(t10, f"table_10_{tag}", index=False)
-
-    header(f"Table 11 ({name}): UCB with different bonus scales c, {N_TUNE} runs each")
-    t11 = ucb_tab[["setting"] + cols].round(5)
+    header(f"Table 11 ({name}): TS with different priors Beta(1, b), {N_TUNE} runs each")
+    t11 = ts_tab[["setting", "prior_mean_percent"] + cols].round(5)
     print(t11.to_string(index=False))
     save_table(t11, f"table_11_{tag}", index=False)
 
-    fig_path = OUT / f"figure_4_tuning_{tag}.png"
+    header(f"Table 12 ({name}): UCB with different bonus scales c, {N_TUNE} runs each")
+    t12 = ucb_tab[["setting"] + cols].round(5)
+    print(t12.to_string(index=False))
+    save_table(t12, f"table_12_{tag}", index=False)
+
+    fig_path = OUT / f"figure_5_tuning_{tag}.png"
     ex.plot_tuning(ts_tab, ucb_tab, random_ctr, fig_path)
-    print(f"\nFigure 4 ({name}) saved: output/{fig_path.name}")
+    print(f"\nFigure 5 ({name}) saved: output/{fig_path.name}")
 
     # 2. Fair pick: choose the setting on days 1 and 2 only, then score it on
     #    days 3 to 7. This avoids choosing the setting on the same rows we report.
@@ -206,40 +244,54 @@ def section_c(name, df):
         s = summarise(run_many(make, test_df, n_runs=N_RUNS))
         s["policy"] = label
         rows.append(s)
-    header(f"Table 12 ({name}): Settings chosen on days 1 and 2, scored on days 3 to 7, {N_RUNS} runs")
-    t12 = pd.DataFrame(rows)[["policy"] + cols].round(5)
-    print(t12.to_string(index=False))
-    save_table(t12, f"table_12_{tag}", index=False)
+    header(f"Table 13 ({name}): Settings chosen on days 1 and 2, scored on days 3 to 7, {N_RUNS} runs")
+    t13 = pd.DataFrame(rows)[["policy"] + cols].round(5)
+    print(t13.to_string(index=False))
+    save_table(t13, f"table_13_{tag}", index=False)
 
     # 3. Does the order of the log matter? Same policies on shuffled rows.
+    #    For UCB we also check the setting that did best over the whole week.
+    week_best_c = float(ucb_tab.loc[ucb_tab["ctr_mean"].idxmax(), "c"])
     shuffled = df.sample(frac=1, random_state=1).reset_index(drop=True)
     rows = []
     for label, make in [("TS default Beta(1,1)", lambda rng: ThompsonSampling(K, rng)),
                         ("UCB default c=1", lambda rng: UCB(K, rng, c=1)),
-                        (f"UCB c={best_c}", lambda rng: UCB(K, rng, c=best_c))]:
+                        (f"UCB best week setting c={week_best_c}", lambda rng: UCB(K, rng, c=week_best_c))]:
         for order, d in [("time order", df), ("shuffled", shuffled)]:
             s = summarise(run_many(make, d, n_runs=N_TUNE))
             s["policy"], s["row_order"] = label, order
             rows.append(s)
-    header(f"Table 13 ({name}): Replay in time order vs shuffled rows, {N_TUNE} runs")
-    t13 = pd.DataFrame(rows)[["policy", "row_order"] + cols].round(5)
-    print(t13.to_string(index=False))
-    save_table(t13, f"table_13_{tag}", index=False)
+    header(f"Table 14 ({name}): Replay in time order vs shuffled rows, {N_TUNE} runs")
+    t14 = pd.DataFrame(rows)[["policy", "row_order"] + cols].round(5)
+    print(t14.to_string(index=False))
+    save_table(t14, f"table_14_{tag}", index=False)
 
 
 if __name__ == "__main__":
-    # Full run (for the report): python main.py
-    # Quick test on one file:      python main.py 10
-    start_log()
-    quick = sys.argv[1:]
-    if quick:
-        dfs = {f"{k} items": load(int(k)) for k in quick}
+    # Full run (for the report):   python main.py
+    # Quick test on one file:       python main.py 10
+    # One question only, quick:     python main.py 10 b      (sections: a, b, c)
+    args = sys.argv[1:]
+    files = [a for a in args if a.isdigit()]
+    sections = [a for a in args if not a.isdigit()] or ["a", "b", "c"]
+    quick = bool(args)
+    # The full run writes output/run_log.txt, a quick run writes run_log_quick.txt,
+    # so a quick test never overwrites the log of the full run.
+    start_log("run_log_quick.txt" if quick else "run_log.txt")
+
+    if files:
+        dfs = {f"{k} items": load(int(k)) for k in files}
     else:
         dfs = {f"{k} items": load(k) for k in (10, 20, 80)}
         section_data(dfs)          # Tables 1 to 6 use all three files
         del dfs["20 items"]        # the 20 item file is only described, not replayed
-    section_sanity(dfs)
+
+    if "a" in sections:
+        section_sanity(dfs)
     for name, df in dfs.items():
-        section_a(name, df)
-    for name, df in dfs.items():
-        section_c(name, df)
+        if "a" in sections:
+            section_a(name, df)
+        if "b" in sections:
+            section_b(name, df)
+        if "c" in sections:
+            section_c(name, df)

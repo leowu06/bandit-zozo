@@ -131,3 +131,26 @@ def plot_tuning(ts_tab, ucb_tab, random_ctr, path):
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)
+
+
+def plot_batch(tab, random_ctr, path):
+    """Figure 4: CTR against batch size, one line per policy, with a band of
+    plus or minus 1.96 binomial standard errors."""
+    fig, ax = plt.subplots(figsize=(6.5, 3.3))
+    for (label, part), colour in zip(tab.groupby("policy", sort=False), [BLUE, ORANGE]):
+        x = part["batch_size"].to_numpy(dtype=float)
+        y = part["ctr_mean"].to_numpy() * 100
+        se = part["se_binomial"].to_numpy() * 100
+        ax.fill_between(x, y - 1.96 * se, y + 1.96 * se, color=colour, alpha=0.15, linewidth=0)
+        ax.plot(x, y, color=colour, linewidth=2, marker="o", markersize=5)
+        ax.text(x[-1], y[-1], f" {label}", va="center", fontsize=8, color=colour)
+    ax.axhline(random_ctr * 100, color=INK, linewidth=1, linestyle="--")
+    ax.text(1, random_ctr * 100, "Random", va="bottom", fontsize=8, color=INK)
+    ax.set_xscale("log")
+    ax.set_xlabel("batch size (matched rows per update, log scale)", color=INK, fontsize=9)
+    ax.set_ylabel("CTR (%)", color=INK, fontsize=9)
+    ax.set_title("CTR when the policy learns in batches", fontsize=10, loc="left")
+    style(ax)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)

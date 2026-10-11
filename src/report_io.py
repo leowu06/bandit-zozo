@@ -37,5 +37,5 @@ class Tee:
         self.file.flush()
 
 
-def start_log():
-    sys.stdout = Tee(OUT / "run_log.txt")
+def start_log(filename="run_log.txt"):
+    sys.stdout = Tee(OUT / filename)
