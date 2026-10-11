@@ -13,7 +13,7 @@ import pandas as pd
 from src.data import load, user_cols
 from src import explore as ex
 from src.replay import RandomPolicy, FixedPolicy, run_many, summarise
-from src.policies import ThompsonSampling
+from src.policies import ThompsonSampling, UCB
 
 random.seed(1)
 np.random.seed(1)
@@ -98,21 +98,23 @@ def section_a(name, df):
     runs = {
         "Random": run_many(lambda rng: RandomPolicy(K, rng), df, n_runs=N_RUNS),
         "TS": run_many(lambda rng: ThompsonSampling(K, rng), df, n_runs=N_RUNS),
+        "UCB": run_many(lambda rng: UCB(K, rng), df, n_runs=N_RUNS),
         "Oracle": run_many(lambda rng: FixedPolicy(K, rng, best), df, n_runs=1),
     }
 
-    header(f"Table 8 ({name}): CTR of Thompson Sampling vs Random and Oracle, {N_RUNS} runs")
+    header(f"Table 8 ({name}): CTR of TS and UCB vs Random and Oracle, {N_RUNS} runs")
     rows = [summarise(r) for r in runs.values()]
     cols = ["policy", "runs", "mean_matched", "mean_clicks", "ctr_mean", "ctr_lo", "ctr_hi"]
     print(pd.DataFrame(rows)[cols].round(5).to_string(index=False))
 
-    header(f"Table 9 ({name}): How often TS showed each item vs its true CTR")
-    shown = np.mean([r["shown"] for r in runs["TS"]], axis=0)
-    t = pd.DataFrame({"true_ctr_percent": (true_ctr * 100).round(3),
-                      "ts_share_shown_percent": (shown / shown.sum() * 100).round(1)})
+    header(f"Table 9 ({name}): How often TS and UCB showed each item vs its true CTR")
+    t = pd.DataFrame({"true_ctr_percent": (true_ctr * 100).round(3)})
+    for p in ("TS", "UCB"):
+        shown = np.mean([r["shown"] for r in runs[p]], axis=0)
+        t[f"{p}_share_shown_percent"] = (shown / shown.sum() * 100).round(1)
     print(t.sort_values("true_ctr_percent", ascending=False).to_string())
 
-    fig_path = OUT / f"figure_3_ts_learning_{name.split()[0]}items.png"
+    fig_path = OUT / f"figure_3_learning_{name.split()[0]}items.png"
     ex.plot_learning({k: mean_curve(v) for k, v in runs.items() if k != "Oracle"},
                      summarise(runs["Oracle"])["ctr_mean"], fig_path)
     print(f"\nFigure 3 ({name}) saved: output/{fig_path.name}")
