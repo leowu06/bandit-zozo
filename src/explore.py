@@ -108,3 +108,26 @@ def plot_learning(curves, oracle_ctr, path, skip=200):
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)
+
+
+def plot_tuning(ts_tab, ucb_tab, random_ctr, path):
+    """Figure 4: CTR for each TS prior and each UCB constant.
+    Two panels side by side, each with its own x axis, same CTR scale."""
+    fig, axes = plt.subplots(1, 2, figsize=(9, 3.2), sharey=True)
+    panels = [(axes[0], ts_tab, "prior_strength_b", "TS: prior Beta(1, b), b on log scale", BLUE),
+              (axes[1], ucb_tab, "c", "UCB: bonus scale c, log scale", ORANGE)]
+    for ax, tab, xcol, title, colour in panels:
+        x = tab[xcol].to_numpy(dtype=float)
+        y = tab["ctr_mean"].to_numpy() * 100
+        se = tab["se_binomial"].to_numpy() * 100
+        ax.fill_between(x, y - 1.96 * se, y + 1.96 * se, color=colour, alpha=0.15, linewidth=0)
+        ax.plot(x, y, color=colour, linewidth=2, marker="o", markersize=5)
+        ax.axhline(random_ctr * 100, color=INK, linewidth=1, linestyle="--")
+        ax.text(x.min(), random_ctr * 100, "Random", va="bottom", fontsize=8, color=INK)
+        ax.set_xscale("log")
+        ax.set_title(title, fontsize=9, loc="left")
+        style(ax)
+    axes[0].set_ylabel("CTR (%)", color=INK, fontsize=9)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)

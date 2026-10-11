@@ -119,8 +119,16 @@ def run_many(make_policy, df, n_runs=10, seed=1, **kw):
 
 
 def summarise(runs):
-    """Mean CTR over runs, a 95% interval across runs, and the binomial
-    standard error of a single run (sqrt(p(1-p)/n))."""
+    """Summary of a set of replay runs.
+
+    ctr_mean      average CTR over the runs
+    ctr_sd_runs   how much the CTR moves between runs (policy randomness only,
+                  the data stays the same)
+    ctr_min_run, ctr_max_run   lowest and highest run
+    se_binomial   standard error from the number of matched rows,
+                  sqrt(p(1-p)/n). This is the sampling noise of one run and is
+                  the better guide to whether two policies really differ.
+    """
     ctrs = np.array([r["ctr"] for r in runs])
     n = np.mean([r["n_matched"] for r in runs])
     p = ctrs.mean()
@@ -130,7 +138,8 @@ def summarise(runs):
         "mean_matched": n,
         "mean_clicks": np.mean([r["clicks"] for r in runs]),
         "ctr_mean": p,
-        "ctr_lo": np.percentile(ctrs, 2.5),
-        "ctr_hi": np.percentile(ctrs, 97.5),
-        "se_single_run": np.sqrt(p * (1 - p) / n) if n else np.nan,
+        "ctr_sd_runs": ctrs.std(ddof=1) if len(runs) > 1 else 0.0,
+        "ctr_min_run": ctrs.min(),
+        "ctr_max_run": ctrs.max(),
+        "se_binomial": np.sqrt(p * (1 - p) / n) if n else np.nan,
     }
