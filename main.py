@@ -15,6 +15,7 @@ from src import explore as ex
 from src.replay import RandomPolicy, FixedPolicy, run_many, summarise
 from src.policies import ThompsonSampling, UCB
 from src.report_io import save_table, start_log
+from src import stationarity as st
 
 random.seed(1)
 np.random.seed(1)
@@ -267,13 +268,72 @@ def section_c(name, df):
     save_table(t14, f"table_14_{tag}", index=False)
 
 
+N_PERM = 200  # placebo splits for the block permutation tests in (f)
+
+
+def section_f(name, df):
+    """Question (f): is the data stationary? Uses the log itself, no replay.
+
+    Every test is done twice: the textbook version, which assumes rows are
+    independent, and a block permutation version that keeps whole hours
+    together (see src/stationarity.py for why).
+    """
+    tag = name.replace(" ", "")
+    days = df["timestamp"].dt.date
+    first_days = sorted(days.unique())[:3]
+    halves = np.where(days.isin(first_days), 0, 1)
+
+    # Check A: overall CTR per day
+    daily, test_a = st.daily_chi_square(df)
+    placebo = st.block_permutation(df, 7, lambda g: st.chi_square_stat(df, g), N_PERM)
+    test_a.update(placebo_mean=placebo.mean(), placebo_95th_percentile=np.percentile(placebo, 95),
+                  permutation_p_value=(placebo >= test_a["chi2"]).mean())
+    header(f"Table 15 ({name}): Clicks per day and test of equal daily CTR")
+    print(daily.round(5).to_string())
+    print(pd.Series(test_a).round(6).to_string())
+    save_table(daily.round(5), f"table_15_{tag}")
+    save_table(pd.Series(test_a).round(6).to_frame("value"), f"table_15_test_{tag}")
+
+    # Check B: does the item ranking change between the two halves of the week?
+    by_time, test_b = st.half_split_correlation(df)
+    placebo = st.block_permutation(df, 2, lambda g: st.spearman_stat(df, g), N_PERM)
+    test_b.update(spearman_hour_block_halves_mean=placebo.mean(),
+                  spearman_hour_block_halves_5th_percentile=np.percentile(placebo, 5),
+                  permutation_p_value=(placebo <= test_b["spearman_first_vs_second_half"]).mean())
+    header(f"Table 16 ({name}): Item CTR ranking, first vs second half of the week")
+    print(pd.Series(test_b).round(4).to_string())
+    print("A real change in the ranking would give a first vs second half correlation")
+    print("below the hour block placebo values (small permutation p value).")
+    save_table(pd.Series(test_b).round(4).to_frame("value"), f"table_16_{tag}")
+    fig_path = OUT / f"figure_6_half_split_{tag}.png"
+    ex.plot_half_split(by_time, fig_path)
+    print(f"\nFigure 6 ({name}) saved: output/{fig_path.name}")
+
+    # Check C: likelihood ratio test of item x period interaction
+    rows = []
+    for label, period, n_groups in [("by half week", halves, 2), ("by day", days.to_numpy(), 7)]:
+        r = st.interaction_lr_test(df, period)
+        placebo = st.block_permutation(
+            df, n_groups, lambda g: st.interaction_lr_test(df, g)["LR_statistic"], N_PERM)
+        r.update(split=label, placebo_mean=placebo.mean(),
+                 placebo_95th_percentile=np.percentile(placebo, 95),
+                 permutation_p_value=(placebo >= r["LR_statistic"]).mean())
+        rows.append(r)
+    header(f"Table 17 ({name}): Likelihood ratio test, do items change differently over time?")
+    t17 = pd.DataFrame(rows)[["split", "periods", "LR_statistic", "df", "p_value", "placebo_mean",
+                              "placebo_95th_percentile", "permutation_p_value",
+                              "cells_with_expected_clicks_below_5_percent"]].round(5)
+    print(t17.to_string(index=False))
+    save_table(t17, f"table_17_{tag}", index=False)
+
+
 if __name__ == "__main__":
     # Full run (for the report):   python main.py
     # Quick test on one file:       python main.py 10
-    # One question only, quick:     python main.py 10 b      (sections: a, b, c)
+    # One question only, quick:     python main.py 10 b      (sections: a, b, c, f)
     args = sys.argv[1:]
     files = [a for a in args if a.isdigit()]
-    sections = [a for a in args if not a.isdigit()] or ["a", "b", "c"]
+    sections = [a for a in args if not a.isdigit()] or ["a", "b", "c", "f"]
     quick = bool(args)
     # The full run writes output/run_log.txt, a quick run writes run_log_quick.txt,
     # so a quick test never overwrites the log of the full run.
@@ -295,3 +355,5 @@ if __name__ == "__main__":
             section_b(name, df)
         if "c" in sections:
             section_c(name, df)
+        if "f" in sections and name == "80 items":   # (f) is about the data, use the full file
+            section_f(name, df)

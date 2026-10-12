@@ -1,0 +1,3 @@
+split,periods,LR_statistic,df,p_value,placebo_mean,placebo_95th_percentile,permutation_p_value,cells_with_expected_clicks_below_5_percent
+by half week,2,136.77131,78,4e-05,166.42721,207.08051,0.885,0.0
+by day,7,928.71352,468,0.0,972.43568,1057.80757,0.82,23.0

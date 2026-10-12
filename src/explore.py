@@ -154,3 +154,24 @@ def plot_batch(tab, random_ctr, path):
     fig.tight_layout()
     fig.savefig(path, dpi=200)
     plt.close(fig)
+
+
+def plot_half_split(by_time, path):
+    """Figure 6: each item's CTR in days 1 to 3 against days 4 to 7.
+    Points on the diagonal mean the item behaved the same in both halves."""
+    x = by_time["days 1-3"].to_numpy() * 100
+    y = by_time["days 4-7"].to_numpy() * 100
+    hi = max(x.max(), y.max()) * 1.05
+    fig, ax = plt.subplots(figsize=(4.6, 4.3))
+    ax.plot([0, hi], [0, hi], color=INK, linewidth=1, linestyle="--")
+    ax.scatter(x, y, s=16, color=BLUE, alpha=0.8, edgecolor="white", linewidth=0.5)
+    ax.set_xlim(0, hi)
+    ax.set_ylim(0, hi)
+    ax.set_xlabel("CTR days 1 to 3 (%)", color=INK, fontsize=9)
+    ax.set_ylabel("CTR days 4 to 7 (%)", color=INK, fontsize=9)
+    ax.set_title("Item CTR, first vs second half of the week", fontsize=10, loc="left")
+    style(ax)
+    ax.grid(axis="x", color="#e6e5e1", linewidth=0.6)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)

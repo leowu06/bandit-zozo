@@ -1,0 +1,9 @@
+,value
+spearman_first_vs_second_half,0.7718
+spearman_random_halves_mean,0.8702
+spearman_random_halves_min,0.823
+spearman_random_halves_max,0.9099
+top10_items_in_both_halves,3.0
+spearman_hour_block_halves_mean,0.7469
+spearman_hour_block_halves_5th_percentile,0.6835
+permutation_p_value,0.74
