@@ -132,3 +132,22 @@ def chi_square_stat(df, groups):
 def spearman_stat(df, groups):
     m = df.groupby([df["item_id"].to_numpy(), groups])["click"].mean().unstack()
     return stats.spearmanr(m.iloc[:, 0], m.iloc[:, 1]).statistic
+
+
+def position_permutation(df, statistic, n_perm=200, seed=1):
+    """Placebo for 'does the best item depend on the position?'.
+
+    Within every hour, the three position labels are randomly swapped between
+    the three slots. Each slot keeps its own run of rows (so the streaks in the
+    log stay intact), but any real link between position and item ranking is
+    destroyed. The real statistic is then compared with these placebo values.
+    """
+    block = hour_blocks(df)
+    pos = df["position"].to_numpy() - 1           # 0, 1, 2
+    n_blocks = block.max() + 1
+    rng = np.random.default_rng(seed)
+    values = []
+    for _ in range(n_perm):
+        perms = np.array([rng.permutation(3) for _ in range(n_blocks)])
+        values.append(statistic(perms[block, pos]))
+    return np.array(values)

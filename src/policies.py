@@ -1,4 +1,6 @@
 """Learning policies. Each one plugs into replay() like Random and Oracle do."""
+from collections import deque
+
 import numpy as np
 
 from .replay import Policy
@@ -71,3 +73,151 @@ class UCB(Policy):
         self.shows[item] += 1
         self.clicks[item] += reward
         self.total_shows += 1
+
+
+class DiscountedTS(Policy):
+    """Thompson Sampling that slowly forgets old results (Raj and Kalyani, 2017).
+
+    After every update all click and non click counts are multiplied by gamma
+    (a number just below 1), then the new result is added. Old results fade,
+    so the beliefs follow the recent past. A result that is n updates old
+    still carries weight gamma ** n, which gives a memory of roughly
+    1 / (1 - gamma) updates. gamma = 1 is plain Thompson Sampling.
+    """
+
+    def __init__(self, n_items, rng, gamma=0.999, prior_a=1.0, prior_b=1.0):
+        super().__init__(n_items, rng)
+        self.gamma = gamma
+        self.prior_a, self.prior_b = prior_a, prior_b
+        self.clicks = np.zeros(n_items)
+        self.non_clicks = np.zeros(n_items)
+        self.name = f"Discounted TS gamma={gamma}"
+
+    def select(self, ctx):
+        draws = self.rng.beta(self.prior_a + self.clicks, self.prior_b + self.non_clicks)
+        return int(np.argmax(draws))
+
+    def update(self, item, reward, ctx):
+        self.clicks *= self.gamma
+        self.non_clicks *= self.gamma
+        self.clicks[item] += reward
+        self.non_clicks[item] += 1 - reward
+
+
+class SlidingWindowUCB(Policy):
+    """UCB that only looks at the last `window` results (Garivier and Moulines, 2011).
+
+    Same score as UCB, but averages and counts use only the most recent
+    `window` matched rows. Anything older is dropped completely.
+    """
+
+    def __init__(self, n_items, rng, c=0.01, window=2000):
+        super().__init__(n_items, rng)
+        self.c = c
+        self.window = window
+        self.history = deque()
+        self.shows = np.zeros(n_items)
+        self.clicks = np.zeros(n_items)
+        self.name = f"Sliding window UCB W={window}"
+
+    def select(self, ctx):
+        never_shown = np.flatnonzero(self.shows == 0)
+        if len(never_shown) > 0:
+            return int(self.rng.choice(never_shown))
+        average = self.clicks / self.shows
+        bonus = self.c * np.sqrt(2 * np.log(len(self.history)) / self.shows)
+        score = average + bonus
+        best = np.flatnonzero(score == score.max())
+        return int(self.rng.choice(best))
+
+    def update(self, item, reward, ctx):
+        self.history.append((item, reward))
+        self.shows[item] += 1
+        self.clicks[item] += reward
+        if len(self.history) > self.window:
+            old_item, old_reward = self.history.popleft()
+            self.shows[old_item] -= 1
+            self.clicks[old_item] -= old_reward
+
+
+class SegmentedTS(Policy):
+    """Thompson Sampling with one model per user group.
+
+    The group is the value of one user feature (for example user_feature_0).
+    Every group keeps its own click and non click counts per item.
+
+    borrow = 0: each group starts from Beta(1, 1), so a small group knows
+    nothing and learns only from its own few rows.
+
+    borrow > 0: each group starts from what the pooled model (all groups
+    together) has learned so far, counted as up to `borrow` shows of evidence.
+    A small group then leans on the crowd, while a large group soon outweighs
+    the borrowed evidence with its own data. This is shrinkage towards the
+    pooled estimate.
+    """
+
+    def __init__(self, n_items, rng, feature, n_levels, borrow=0):
+        super().__init__(n_items, rng)
+        self.feature = feature
+        self.borrow = borrow
+        self.group_clicks = np.zeros((n_levels, n_items))
+        self.group_shows = np.zeros((n_levels, n_items))
+        self.pooled_clicks = np.zeros(n_items)
+        self.pooled_shows = np.zeros(n_items)
+        self.name = f"Per group TS ({feature}, borrow={borrow})"
+
+    def prior(self):
+        """Starting belief for any group: flat, or borrowed from the pooled counts."""
+        if self.borrow == 0:
+            return np.ones(self.K), np.ones(self.K)
+        # borrow at most as much evidence as the pooled model really has
+        weight = np.minimum(self.borrow, self.pooled_shows)
+        pooled_rate = np.divide(self.pooled_clicks, self.pooled_shows,
+                                out=np.zeros(self.K), where=self.pooled_shows > 0)
+        return 1 + weight * pooled_rate, 1 + weight * (1 - pooled_rate)
+
+    def select(self, ctx):
+        g = ctx[self.feature]
+        a0, b0 = self.prior()
+        clicks = self.group_clicks[g]
+        non_clicks = self.group_shows[g] - clicks
+        draws = self.rng.beta(a0 + clicks, b0 + non_clicks)
+        return int(np.argmax(draws))
+
+    def update(self, item, reward, ctx):
+        g = ctx[self.feature]
+        self.group_clicks[g, item] += reward
+        self.group_shows[g, item] += 1
+        self.pooled_clicks[item] += reward
+        self.pooled_shows[item] += 1
+
+
+class FairExposureTS(Policy):
+    """Thompson Sampling with a minimum exposure guarantee for items.
+
+    With probability epsilon the policy ignores its beliefs and shows the item
+    it has shown least so far; otherwise it is plain Thompson Sampling. The
+    forced shows rotate through the neglected items, so no item can be starved
+    of exposure. epsilon = 0 is plain TS. Higher epsilon gives fairer exposure
+    at the cost of some clicks.
+    """
+
+    def __init__(self, n_items, rng, epsilon=0.05):
+        super().__init__(n_items, rng)
+        self.epsilon = epsilon
+        self.alpha = np.ones(n_items)
+        self.beta = np.ones(n_items)
+        self.shows = np.zeros(n_items)
+        self.name = f"Fair exposure TS eps={epsilon}"
+
+    def select(self, ctx):
+        if self.rng.random() < self.epsilon:
+            least = np.flatnonzero(self.shows == self.shows.min())
+            return int(self.rng.choice(least))
+        draws = self.rng.beta(self.alpha, self.beta)
+        return int(np.argmax(draws))
+
+    def update(self, item, reward, ctx):
+        self.alpha[item] += reward
+        self.beta[item] += 1 - reward
+        self.shows[item] += 1

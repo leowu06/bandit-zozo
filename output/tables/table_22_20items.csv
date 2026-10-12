@@ -1,0 +1,7 @@
+policy,ctr_mean,se_binomial,gini_exposure,top3_share,least_shown_item_share,items_below_half_fair_share,spearman_exposure_vs_ctr,worst_group_lift,best_group_lift,group_lift_gap
+Random,0.0028,0.0004,0.0149,0.1558,0.0472,0,0.091,1.0,1.0,0.0
+TS,0.003,0.0004,0.1715,0.2535,0.0298,0,0.8496,0.8921,1.2527,0.3606
+UCB c=0.01,0.0038,0.0005,0.6686,0.6936,0.0075,13,0.3155,1.0442,1.866,0.8218
+Fair exposure TS eps=0.05,0.0032,0.0004,0.171,0.2532,0.0348,0,0.8271,0.6412,1.3832,0.7419
+Fair exposure TS eps=0.1,0.0027,0.0004,0.1661,0.2584,0.0361,0,0.4633,0.6956,1.1032,0.4076
+"Per group TS (user_feature_0), borrowing 1000",0.004,0.0005,0.2892,0.3165,0.022,2,0.8887,1.0751,1.7439,0.6688

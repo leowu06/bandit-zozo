@@ -1,4 +1,5 @@
 """Descriptive tables and figures for the data section of the report."""
+import warnings
 import numpy as np
 import pandas as pd
 import matplotlib
@@ -170,6 +171,55 @@ def plot_half_split(by_time, path):
     ax.set_xlabel("CTR days 1 to 3 (%)", color=INK, fontsize=9)
     ax.set_ylabel("CTR days 4 to 7 (%)", color=INK, fontsize=9)
     ax.set_title("Item CTR, first vs second half of the week", fontsize=10, loc="left")
+    style(ax)
+    ax.grid(axis="x", color="#e6e5e1", linewidth=0.6)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+
+
+def plot_shift(curves, switch_row, path, window=1000):
+    """Figure 7: moving CTR over the last `window` matched rows, on the log
+    where the item ranking flips halfway. The dashed line marks the switch."""
+    colours = [INK, BLUE, "#8a8984", ORANGE]
+    fig, ax = plt.subplots(figsize=(7, 3.4))
+    for (label, runs), colour in zip(curves.items(), colours):
+        # put every run on a common x axis: the log row where each match happened
+        grid = np.linspace(0, max(r["matched_rows"].max() for r in runs), 300)
+        lines = []
+        for r in runs:
+            c = np.array(r["matched_clicks"], dtype=float)
+            moving = pd.Series(c).rolling(window, min_periods=window // 2).mean().to_numpy()
+            lines.append(np.interp(grid, r["matched_rows"], moving))
+        with np.errstate(all="ignore"), warnings.catch_warnings():
+            warnings.simplefilter("ignore")   # the first points have no full window yet
+            ax.plot(grid, np.nanmean(lines, axis=0) * 100, color=colour, linewidth=2, label=label)
+    ax.axvline(switch_row, color=INK, linewidth=1, linestyle="--")
+    ax.text(switch_row, ax.get_ylim()[1], " ranking flips", va="top", fontsize=8, color=INK)
+    ax.set_xlabel("row of the log (time order)", color=INK, fontsize=9)
+    ax.set_ylabel(f"CTR over last {window} matches (%)", color=INK, fontsize=9)
+    ax.set_title("Who adapts when the best item changes", fontsize=10, loc="left")
+    ax.legend(fontsize=8, frameon=False)
+    style(ax)
+    fig.tight_layout()
+    fig.savefig(path, dpi=200)
+    plt.close(fig)
+
+
+def plot_fairness(tab, path):
+    """Figure 8: the price of fairness. Each point is a policy: exposure
+    inequality (Gini, lower is fairer to items) against CTR."""
+    fig, ax = plt.subplots(figsize=(6.2, 3.8))
+    x = tab["gini_exposure"].to_numpy()
+    y = tab["ctr_mean"].to_numpy() * 100
+    se = tab["se_binomial"].to_numpy() * 100
+    ax.errorbar(x, y, yerr=1.96 * se, fmt="o", color=BLUE, ecolor=BLUE, alpha=0.9,
+                elinewidth=1, capsize=0, markersize=6)
+    for xi, yi, label in zip(x, y, tab["policy"]):
+        ax.annotate(label, (xi, yi), textcoords="offset points", xytext=(6, 4), fontsize=7, color=INK)
+    ax.set_xlabel("Gini of item exposure (0 = every item shown equally)", color=INK, fontsize=9)
+    ax.set_ylabel("CTR (%)", color=INK, fontsize=9)
+    ax.set_title("Clicks against fairness to items", fontsize=10, loc="left")
     style(ax)
     ax.grid(axis="x", color="#e6e5e1", linewidth=0.6)
     fig.tight_layout()

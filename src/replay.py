@@ -71,6 +71,7 @@ def replay(policy, df, batch_size=1, ctx_cols=()):
     ctx_arr = {c: df[c].to_numpy() for c in ctx_cols}
 
     matched_clicks = []
+    matched_rows = []
     shown = np.zeros(policy.K, dtype=int)
     buffer = []
 
@@ -85,6 +86,7 @@ def replay(policy, df, batch_size=1, ctx_cols=()):
 
         r = int(clicks[t])
         matched_clicks.append(r)
+        matched_rows.append(t)
         shown[a] += 1
         buffer.append((a, r, ctx))
         if len(buffer) >= batch_size:
@@ -101,6 +103,8 @@ def replay(policy, df, batch_size=1, ctx_cols=()):
         "clicks": int(matched_clicks.sum()),
         "ctr": matched_clicks.mean() if n else np.nan,
         "cum_ctr": cum_ctr,
+        "matched_clicks": matched_clicks,
+        "matched_rows": np.array(matched_rows),
         "shown": shown,
     }
 

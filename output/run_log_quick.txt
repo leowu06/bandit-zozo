@@ -1,36 +1,21 @@
 
---- Table 15 (80 items): Clicks per day and test of equal daily CTR ---
-                    rows  clicks  non_clicks      ctr
-2019-11-24 (Sun)  203973     688      203285  0.00337
-2019-11-25 (Mon)  161802     522      161280  0.00323
-2019-11-26 (Tue)  177180     676      176504  0.00382
-2019-11-27 (Wed)  206928     628      206300  0.00303
-2019-11-28 (Thu)  228254     841      227413  0.00368
-2019-11-29 (Fri)  197805     689      197116  0.00348
-2019-11-30 (Sat)  180728     676      180052  0.00374
-chi2                        27.541830
-df                           6.000000
-p_value                      0.000115
-smallest_expected_count    562.926460
-placebo_mean                12.353261
-placebo_95th_percentile     24.382522
-permutation_p_value          0.015000
+--- Table 22 (20 items): Clicks against fairness to items and to users, 5 runs each ---
+                                       policy  ctr_mean  se_binomial  gini_exposure  top3_share  least_shown_item_share  items_below_half_fair_share  spearman_exposure_vs_ctr  worst_group_lift  best_group_lift  group_lift_gap
+                                       Random    0.0028       0.0004         0.0149      0.1558                  0.0472                            0                    0.0910            1.0000           1.0000          0.0000
+                                           TS    0.0030       0.0004         0.1715      0.2535                  0.0298                            0                    0.8496            0.8921           1.2527          0.3606
+                                   UCB c=0.01    0.0038       0.0005         0.6686      0.6936                  0.0075                           13                    0.3155            1.0442           1.8660          0.8218
+                    Fair exposure TS eps=0.05    0.0032       0.0004         0.1710      0.2532                  0.0348                            0                    0.8271            0.6412           1.3832          0.7419
+                     Fair exposure TS eps=0.1    0.0027       0.0004         0.1661      0.2584                  0.0361                            0                    0.4633            0.6956           1.1032          0.4076
+Per group TS (user_feature_0), borrowing 1000    0.0040       0.0005         0.2892      0.3165                  0.0220                            2                    0.8887            1.0751           1.7439          0.6688
+Group lifts use user_feature_0; groups with fewer than 500 matched rows per run are left out:
+they are too small to judge (that is itself a fairness problem).
 
---- Table 16 (80 items): Item CTR ranking, first vs second half of the week ---
-spearman_first_vs_second_half                0.7718
-spearman_random_halves_mean                  0.8702
-spearman_random_halves_min                   0.8230
-spearman_random_halves_max                   0.9099
-top10_items_in_both_halves                   3.0000
-spearman_hour_block_halves_mean              0.7469
-spearman_hour_block_halves_5th_percentile    0.6835
-permutation_p_value                          0.7400
-A real change in the ranking would give a first vs second half correlation
-below the hour block placebo values (small permutation p value).
+--- Table 23 (20 items): Lift over Random per user group (user_feature_0), 5 runs each ---
+       rows_in_log  random_ctr  TS lift  UCB c=0.01 lift  Fair exposure TS eps=0.05 lift  Fair exposure TS eps=0.1 lift  Per group TS (user_feature_0), borrowing 1000 lift
+group                                                                                                                                                                      
+1           121972       0.003    1.033            1.153                           1.218                          1.011                                               1.075
+2           183479       0.002    1.253            1.866                           1.383                          1.103                                               1.744
+3            38312       0.005    0.892            1.044                           0.641                          0.696                                               1.478
+Groups left out as too small: [0]
 
-Figure 6 (80 items) saved: output/figure_6_half_split_80items.png
-
---- Table 17 (80 items): Likelihood ratio test, do items change differently over time? ---
-       split  periods  LR_statistic  df  p_value  placebo_mean  placebo_95th_percentile  permutation_p_value  cells_with_expected_clicks_below_5_percent
-by half week        2     136.77131  78  0.00004     166.42721                207.08051                0.885                                         0.0
-      by day        7     928.71352 468  0.00000     972.43568               1057.80757                0.820                                        23.0
+Figure 8 (20 items) saved: output/figure_8_fairness_20items.png

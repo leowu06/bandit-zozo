@@ -1,0 +1,4 @@
+group,rows_in_log,random_ctr,TS lift,UCB c=0.01 lift,Fair exposure TS eps=0.05 lift,Fair exposure TS eps=0.1 lift,"Per group TS (user_feature_0), borrowing 1000 lift"
+1,121972,0.003,1.033,1.153,1.218,1.011,1.075
+2,183479,0.002,1.253,1.866,1.383,1.103,1.744
+3,38312,0.005,0.892,1.044,0.641,0.696,1.478
