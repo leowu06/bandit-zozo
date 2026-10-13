@@ -1,0 +1,7 @@
+policy,row_order,mean_matched,mean_clicks,ctr_mean,ctr_sd_runs,se_binomial
+"TS default Beta(1,1)",time order,17053.2,66.0,0.00387,0.00036,0.00048
+"TS default Beta(1,1)",shuffled,17117.0,56.4,0.00329,0.00062,0.00044
+UCB default c=1,time order,10638.8,46.6,0.00441,0.00103,0.00064
+UCB default c=1,shuffled,17111.6,56.8,0.00332,0.00024,0.00044
+UCB best week setting c=0.01,time order,11869.4,68.4,0.00569,0.00111,0.00069
+UCB best week setting c=0.01,shuffled,17040.8,85.2,0.00501,0.00144,0.00054

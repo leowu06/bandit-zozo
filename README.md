@@ -22,32 +22,47 @@ Columns: `timestamp`, `item_id`, `position` (1 = left, 2 = centre, 3 = right), `
 
 ## What the code answers
 
-- (a) two policies, one built on TS and one on UCB, compared with each other and with the random logging policy
-- (b) sensitivity to batch size
-- (c) sensitivity to parameter tuning
-- (d) one pooled model vs separate models per user group
-- (e) fairness to users and to items, plus a fairer variant
-- (f) whether click rates are stationary over the 7 days
-- (g) how the models would change if they are not
+| Question | What we do | Tables | Figures |
+|---|---|---|---|
+| Data | descriptives, propensity check, CTR by item, position, user group and day | 1 to 6 | 1, 2 |
+| (a) | TS and UCB against Random and the hindsight Oracle; placement by position; final comparison with regret and a test against Random | 7 to 13 | 3 |
+| (b) | learning in batches of 1 to 5,000 matched rows | 14 | 4 |
+| (c) | TS prior and UCB bonus scale; settings chosen on days 1 and 2 and scored on days 3 to 7; replay in time order vs shuffled | 15 to 18 | 5 |
+| (d) | one pooled model vs one model per user group, with and without borrowing from the pooled model | 19, 20 | |
+| (e) | fairness to items (exposure, Gini) and to users (lift per group); UCB with a minimum exposure guarantee | 21, 22 | 6 |
+| (f) | daily CTR, item ranking across the week, likelihood ratio test, all checked against an hour block permutation placebo | 23 to 25 | 7 |
+| (g) | discounted TS and sliding window UCB on the real log and on a log where the ranking flips halfway | 26, 27 | 8 |
+
+The main results use the 80 item file. The 10 item file is the easier setting (fewer items to learn about) and is run next to it. The 20 item file is only described.
 
 ## Layout
 
 ```
-src/       loader, replay evaluator, policies, fairness checks
-data/      input files (gitignored)
-output/    tables and figures written by the code (gitignored)
-report/    LaTeX report
-main.py    runs everything in order
+src/data.py          loader
+src/replay.py        replay evaluator, Random and fixed item policies
+src/policies.py      TS, UCB, discounted TS, sliding window UCB, per group TS, exposure floor
+src/explore.py       descriptive tables and all figures
+src/stationarity.py  tests for (f) and the placement test
+src/fairness.py      exposure measures for (e)
+src/report_io.py     saves every table as csv and tex, and the console log
+main.py              runs everything in report order
+peek.py              small tool to look at the data and the replay step by step
+data/                input files (not in the repo)
+output/              tables, figures and run logs written by main.py
+report/              LaTeX report
 ```
 
 ## Running it
 
 ```
 pip install -r requirements.txt
-python main.py
+python main.py           # full run, about 3 hours, writes output/run_log.txt
+python main.py 10 b      # one part on one file, for quick checks
 ```
 
-The seed is fixed at 1, so every run gives the same numbers. Each table and figure prints with an ID (Table 1, Figure 2 and so on) that matches the report.
+On a Mac, `caffeinate -i python main.py` keeps the computer awake during the full run. The full run first clears old tables and figures from `output/`.
+
+The seed is fixed at 1 and every replay run uses its own seed, so every run gives the same numbers. Each table and figure prints with an ID (Table 8, Figure 3 and so on) that matches the report.
 
 ## References
 

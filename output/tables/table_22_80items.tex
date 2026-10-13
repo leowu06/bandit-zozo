@@ -1,0 +1,12 @@
+\begin{tabular}{lrrrrrrrrrr}
+\toprule
+policy & ctr\_mean & se\_binomial & gini\_exposure & top3\_share & least\_shown\_item\_share & items\_below\_half\_fair\_share & spearman\_exposure\_vs\_ctr & worst\_group\_lift & best\_group\_lift & group\_lift\_gap \\
+\midrule
+Random & 0.00340 & 0.00040 & 0.02090 & 0.04100 & 0.01150 & 0 & -0.05760 & 1.00000 & 1.00000 & 0.00000 \\
+TS & 0.00390 & 0.00050 & 0.09020 & 0.05770 & 0.00980 & 0 & 0.68690 & 1.09820 & 1.15200 & 0.05380 \\
+UCB c=0.01 & 0.00570 & 0.00070 & 0.67270 & 0.40700 & 0.00280 & 54 & 0.23640 & 0.91740 & 1.97320 & 1.05580 \\
+Fair exposure TS eps=0.05 & 0.00350 & 0.00050 & 0.08770 & 0.06160 & 0.01020 & 0 & 0.54990 & 0.92430 & 1.50700 & 0.58260 \\
+Fair exposure TS eps=0.1 & 0.00360 & 0.00050 & 0.08220 & 0.05550 & 0.01040 & 0 & 0.60650 & 1.01770 & 1.09900 & 0.08130 \\
+Per group TS (user\_feature\_0), borrowing 1000 & 0.00490 & 0.00050 & 0.15700 & 0.07730 & 0.00880 & 0 & 0.66670 & 1.28360 & 2.00100 & 0.71750 \\
+\bottomrule
+\end{tabular}

@@ -192,32 +192,33 @@ class SegmentedTS(Policy):
         self.pooled_shows[item] += 1
 
 
-class FairExposureTS(Policy):
-    """Thompson Sampling with a minimum exposure guarantee for items.
+class ExposureFloor(Policy):
+    """Minimum exposure guarantee for items, wrapped around any policy.
 
-    With probability epsilon the policy ignores its beliefs and shows the item
-    it has shown least so far; otherwise it is plain Thompson Sampling. The
-    forced shows rotate through the neglected items, so no item can be starved
-    of exposure. epsilon = 0 is plain TS. Higher epsilon gives fairer exposure
-    at the cost of some clicks.
+    Every item is promised at least `floor` times its fair share of the shows
+    so far (the fair share is total shows / number of items, what uniform
+    random serving would give). Whenever some item is below that line, the
+    wrapper shows the most neglected one; otherwise the base policy chooses.
+    The base policy still learns from every result.
+    floor = 0 gives back the base policy, floor = 1 forces equal exposure.
     """
 
-    def __init__(self, n_items, rng, epsilon=0.05):
-        super().__init__(n_items, rng)
-        self.epsilon = epsilon
-        self.alpha = np.ones(n_items)
-        self.beta = np.ones(n_items)
-        self.shows = np.zeros(n_items)
-        self.name = f"Fair exposure TS eps={epsilon}"
+    def __init__(self, base, rng, floor=0.5):
+        super().__init__(base.K, rng)
+        self.base = base
+        self.floor = floor
+        self.shows = np.zeros(base.K)
+        self.name = f"{base.name} + exposure floor {floor}"
 
     def select(self, ctx):
-        if self.rng.random() < self.epsilon:
-            least = np.flatnonzero(self.shows == self.shows.min())
-            return int(self.rng.choice(least))
-        draws = self.rng.beta(self.alpha, self.beta)
-        return int(np.argmax(draws))
+        total = self.shows.sum()
+        if total >= self.K:   # let every item be seen once before the rule applies
+            below = np.flatnonzero(self.shows < self.floor * total / self.K)
+            if len(below) > 0:
+                least = below[self.shows[below] == self.shows[below].min()]
+                return int(self.rng.choice(least))
+        return self.base.select(ctx)
 
     def update(self, item, reward, ctx):
-        self.alpha[item] += reward
-        self.beta[item] += 1 - reward
+        self.base.update(item, reward, ctx)
         self.shows[item] += 1
