@@ -1,6 +1,0 @@
-policy,mean_matched,mean_clicks,ctr_mean,ctr_sd_runs,se_binomial
-Random,12544.6,47.4,0.00378,0.0005,0.00055
-"TS default Beta(1,1)",12456.9,47.5,0.00381,0.00066,0.00055
-"TS tuned on days 1-2, Beta(1,30)",12511.1,46.6,0.00372,0.00062,0.00054
-UCB default c=1,8129.0,34.4,0.00424,0.0008,0.00072
-"UCB tuned on days 1-2, c=0.1",7588.8,38.1,0.00502,0.00076,0.00081

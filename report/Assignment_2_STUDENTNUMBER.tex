@@ -1,0 +1,841 @@
+% ============================================================================
+% Learning from Big Data (B3MIN1039), Module 2, Assignment 2
+% Multi-armed bandits on the ZOZOTOWN Open Bandit data
+%
+% Submission file name: Assignment_2_STUDENTNUMBER.pdf
+% Page limit: 15 pages without the appendix (only the first 15 are graded).
+%
+% Every number in this report comes from output/run_log.txt, produced by
+% `python main.py` in the code repository. Each table and figure caption names
+% the table or figure ID printed by the code ("code Table 13").
+%
+% Parts still to fill in after the final run are marked with \todo{...}.
+% ============================================================================
+
+\documentclass[11pt]{article}
+
+\usepackage[a4paper,margin=2.5cm]{geometry}
+\usepackage{float}
+\usepackage{booktabs}
+\usepackage{graphicx}
+\usepackage{caption}
+\usepackage{amsmath}
+\usepackage{amssymb}
+\usepackage{xcolor}
+\usepackage[round]{natbib}
+\usepackage{hyperref}
+\hypersetup{colorlinks=true, linkcolor=blue, citecolor=blue, urlcolor=blue}
+
+\captionsetup{font=small, labelfont=bf}
+\graphicspath{{../output/}}
+
+% Placeholder for parts that still need the final run or a decision
+\newcommand{\todo}[1]{\textcolor{red}{[TODO: #1]}}
+
+% Include a figure from the code output, or a visible box if it does not exist yet
+\newcommand{\codefigure}[2]{%
+  \IfFileExists{../output/#1}{\includegraphics[width=#2\textwidth]{#1}}%
+  {\fbox{\parbox{#2\textwidth}{\centering\vspace{2cm}\textcolor{red}{\detokenize{#1} not found: run main.py}\vspace{2cm}}}}%
+}
+
+\newcommand{\studentnumber}{STUDENTNUMBER}
+
+\title{Learning from Big Data: Assignment 2\\[2pt]
+       \large Recommending fashion items with Thompson Sampling and UCB}
+\author{Dongjie (Leo) Wu Qiu, 721207 \studentnumber}
+\date{\today}
+
+\begin{document}
+\maketitle
+
+% ============================================================================
+\section{Introduction}
+% ============================================================================
+
+ZOZOTOWN, a large Japanese fashion website, shows every visitor a row of three
+recommended items. Which items should go into that row, and in which slot, to
+get the most clicks? With dozens of candidate items and click rates well below
+one percent, the site cannot simply test every item at length: every
+impression spent on a weak item is a click lost. This is a multi-armed bandit
+problem. Each item is an arm, a click is the reward, and the policy has to
+balance trying uncertain items (exploration) against showing the items that
+look best so far (exploitation).
+
+We use a week of logged data from a randomised experiment that ZOZO ran in
+November 2019 \citep{saito2021}. We implement Thompson Sampling (TS) and the
+Upper Confidence Bound algorithm (UCB) and evaluate them offline with the
+replay method of \citet{li2011}. Beyond the comparison asked for in question
+(a), we study batch updates (b), tuning (c), user heterogeneity (d), fairness
+(e), stationarity (f) and policies for a changing environment (g). Two
+extensions are implemented: a minimum exposure guarantee for items, and
+discounted TS and sliding window UCB for non-stationary data.
+
+\todo{Two or three sentences with the headline findings, written last.}
+
+% ============================================================================
+\section{Data}
+% ============================================================================
+
+The main file has 1{,}356{,}670 impressions of 79 items over seven days
+(24 to 30 November 2019), with 4{,}720 clicks, an overall click-through rate
+(CTR) of 0.348\%. Each row records one item shown in one slot (1 = left,
+2 = centre, 3 = right), whether it was clicked, its propensity score and four
+hashed user features. Two smaller files contain the same log restricted to 10
+items (172{,}400 rows, CTR 0.280\%) and 20 items (345{,}469 rows, CTR 0.255\%);
+the 10 item file has no user features. We use the 80 item file for all main
+results and the 10 item file as an easier setting with fewer arms
+(code Table~1).
+
+Three facts about the data drive the rest of the analysis.
+
+\paragraph{The logging policy was uniform random.}
+Every row has propensity $0.0125 = 1/80$ (code Table~2). The brief mentions
+that ZOZO also ran a Bernoulli TS policy, but those impressions are not in this
+file, so the policy that generated our data, and our benchmark, is uniform
+random serving. Uniform logging is also what makes unbiased replay
+evaluation possible (Section~\ref{sec:replay}).
+
+\paragraph{Items differ, positions hardly do.}
+Item CTRs range from 0.115\% to 0.784\% (Figure~\ref{fig:itemctr}), so the
+best item is clicked almost seven times as often as the worst. That spread is
+what a bandit can exploit. The three positions have almost the same CTR:
+0.354\%, 0.349\% and 0.341\% (code Table~3).
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_1_item_ctr.png}{0.85}
+  \caption{CTR per item in the 80 item file with 95\% Wilson intervals,
+    sorted from best to worst; the dashed line is the overall CTR
+    (code Figure~1).}
+  \label{fig:itemctr}
+\end{figure}
+
+\paragraph{One user code covers a third of the data.}
+In all four user features the same code covers exactly 479{,}757 rows
+(35\%), which suggests these are visitors without a known profile
+(code Table~5). Several feature levels are tiny (some have fewer than 100
+rows). This matters for questions (d) and (e).
+
+Daily CTR moves between 0.303\% and 0.382\% (code Table~6, Figure~2); we test
+in Section~\ref{sec:f} whether this is more than noise.
+
+% ============================================================================
+\section{Method}
+% ============================================================================
+
+\subsection{Offline evaluation by replay}
+\label{sec:replay}
+
+We cannot show items to real visitors, so every policy is evaluated on the
+log with the replay method \citep{li2011}. Let the log be a sequence of
+events $(x_t, a_t, r_t)$, $t = 1,\dots,T$, in time order, where $x_t$ is the
+context (slot and user features), $a_t$ the item that was shown and
+$r_t \in \{0,1\}$ the click. A policy $\pi$ walks through the log. At each
+event it picks an item $\pi(x_t, h_{t-1})$ based on its history $h_{t-1}$. If
+the pick equals the logged item, the event is \emph{matched}: the click is
+revealed, counted, and added to the history. Otherwise the event is skipped
+and the policy learns nothing. The replay estimate of the policy's CTR is
+%
+\begin{equation}
+  \widehat{\text{CTR}}(\pi)
+  = \frac{\sum_{t=1}^{T} r_t \,\mathbf{1}\{\pi(x_t,h_{t-1}) = a_t\}}
+         {\sum_{t=1}^{T} \mathbf{1}\{\pi(x_t,h_{t-1}) = a_t\}} .
+  \label{eq:replay}
+\end{equation}
+%
+\citet{li2011} show that this estimate is unbiased when the logged item was
+chosen uniformly at random and independently of the click, and the events are
+independent. The first condition holds by design. With $K$ arms, about one
+event in $K$ matches, so both the 10 and the 80 item file leave roughly
+17{,}000 matched events and only 45 to 130 clicks per run. One standard error
+of a CTR estimate is 0.04 to 0.07 percentage points, and we treat differences
+of that size as noise.
+
+The independence condition holds only approximately. In the log, the same
+item often stays in the same slot for many consecutive rows. Deterministic
+policies such as UCB keep the same pick until they learn something new, so
+they match one row of such a streak and then wait for the next streak of
+their new favourite: UCB with $c=1$ matches about 5{,}000 events in time order
+but about 17{,}000 when the rows are shuffled (code Table~18). We report
+matched events next to every CTR and return to this in Section~\ref{sec:c}.
+
+Each stochastic policy is replayed 10 times (5 times in the larger grids),
+run $i$ using random seed $1+i$. Tables report the mean CTR over runs, the
+spread across runs, and the binomial standard error
+$\sqrt{\hat p(1-\hat p)/n}$ of one run with $n$ matched events. The benchmark
+at the top is the \emph{Oracle}, which always shows the item with the highest
+CTR over the whole week. It uses information no real policy has, so it is an
+upper bound for any policy that shows the same item to everyone.
+
+\subsection{Thompson Sampling}
+
+TS keeps a Beta belief about the click probability $\theta_k$ of every item
+$k$. Starting from the prior $\text{Beta}(a_0, b_0)$, after $s_k$ clicks and
+$f_k$ non-clicks the posterior is
+%
+\begin{equation}
+  \theta_k \mid \text{data} \sim \text{Beta}(a_0 + s_k,\; b_0 + f_k),
+  \label{eq:ts}
+\end{equation}
+%
+by Beta-Bernoulli conjugacy. At every event TS draws one value
+$\tilde\theta_k$ from each posterior and shows $\arg\max_k \tilde\theta_k$;
+after a matched event it adds one to $s_k$ or $f_k$ \citep{russo2018}.
+Items with an uncertain posterior sometimes draw a high value and get tried,
+so exploration comes from the posterior itself. The prior can be read as
+$a_0-1$ imagined clicks and $b_0-1$ imagined non-clicks with mean
+$a_0/(a_0+b_0)$. The default $\text{Beta}(1,1)$ is flat over $[0,1]$.
+
+\subsection{Upper Confidence Bound}
+
+UCB1 \citep{auer2002} first shows every item once and then shows the item with
+the highest index
+%
+\begin{equation}
+  U_k = \hat\mu_k + c\,\sqrt{\frac{2\ln n}{n_k}},
+  \label{eq:ucb}
+\end{equation}
+%
+where $\hat\mu_k$ is the item's CTR so far, $n_k$ the number of times it was
+shown and $n$ the total number of matched events. The second term is an
+optimism bonus that shrinks as an item is shown more. The textbook version has
+$c=1$; we treat $c$ as a tuning parameter. Unlike TS, UCB is deterministic:
+the same history always gives the same choice.
+
+\subsection{Measures}
+
+Besides the CTR we report the lift over Random,
+$100(\widehat{\text{CTR}}/\widehat{\text{CTR}}_{\text{Random}} - 1)$, the
+regret per 10{,}000 matched events,
+$10^4(\widehat{\text{CTR}}_{\text{Oracle}} - \widehat{\text{CTR}})$, which
+counts the clicks lost against always showing the best item, and a two-sided
+two-proportion $z$-test against Random based on the clicks and matched events
+of one run.
+
+% ============================================================================
+\section{Question (a): comparing the policies}
+\label{sec:a}
+% ============================================================================
+
+\subsection{Main comparison}
+
+Table~\ref{tab:a} compares the policies on both files. The defaults are TS
+with a flat prior and UCB with $c=1$. The tuned versions use the settings
+found in question (c): a prior $\text{Beta}(1,300)$, whose mean of 0.33\% is
+close to the overall CTR, and $c=0.01$.
+
+\begin{table}[H]
+  \centering
+  \caption{Replay CTR of the policies, 10 runs each (code Table~13). Lift is
+    relative to Random, regret is the number of clicks lost against the
+    Oracle per 10{,}000 matched events, $p$ is the two-proportion $z$-test
+    against Random. Tuned settings come from question (c) and were chosen on
+    the same log.}
+  \label{tab:a}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrrr@{\hspace{14pt}}rrr}
+    \toprule
+    & \multicolumn{5}{c}{80 items} & \multicolumn{3}{c}{10 items} \\
+    \cmidrule(lr){2-6}\cmidrule(lr){7-9}
+    Policy & Matched & CTR (\%) & Lift (\%) & Regret & $p$ & CTR (\%) & Lift (\%) & $p$ \\
+    \midrule
+    Random (logging policy)        & 17{,}192 & 0.330 &   0.0 & 45.4 &       & 0.261 &   0.0 &       \\
+    TS, $\text{Beta}(1,1)$         & 17{,}109 & 0.377 &  14.1 & 40.7 & 0.47  & 0.380 &  45.4 & 0.05  \\
+    TS, $\text{Beta}(1,300)$       & 17{,}077 & 0.413 &  25.0 & 37.1 & 0.21  & 0.395 &  51.0 & 0.03  \\
+    UCB, $c=1$                     & 10{,}757 & 0.408 &  23.4 & 37.6 & 0.30  & 0.330 &  26.3 & 0.43  \\
+    UCB, $c=0.01$                  & 11{,}169 & 0.502 &  52.0 & 28.2 & 0.02  & 0.398 &  52.3 & 0.03  \\
+    Per group TS (Section~\ref{sec:d}) & 17{,}073 & 0.443 & 34.2 & 34.1 & 0.09  &       &       &       \\
+    Oracle (best item)             & 16{,}325 & 0.784 & 137.3 &  0.0 &       & 0.525 & 100.9 &       \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Random replays at 0.330\% on the 80 item file, close to the 0.348\% of the
+full log, and the Oracle replays at exactly the CTR of the best item. Both
+checks confirm that the evaluator works (code Table~7).
+
+The two files tell different stories. With 10 items every learning policy
+beats Random by 45 to 52\%, and TS shows the best item in 31.5\% of its
+matched events against 10\% under Random (code Table~9). With 79 items the
+same 17{,}000 matched events are spread over eight times as many arms, about
+217 per item and on average less than one click each. Default TS then barely
+moves away from uniform: it shows the best item 1.7\% of the time against
+1.27\% for Random, and its 14\% lift is not significant ($p=0.47$). The flat
+prior is the reason. After $n$ non-clicks its posterior mean is $1/(n+2)$, so
+after 217 shows an item without clicks still looks like 0.46\%, above the
+true CTR of most items, and TS keeps exploring until the data runs out.
+Figure~\ref{fig:learning} shows the result: the TS curve separates from Random
+early and then stays flat, far below the Oracle.
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_3_learning_80items.png}{0.75}
+  \caption{Cumulative CTR during replay on the 80 item file, mean over runs,
+    for TS, UCB ($c=1$) and Random; the dashed line is the Oracle
+    (code Figure~3).}
+  \label{fig:learning}
+\end{figure}
+
+Tuning changes the ranking. The informed prior lifts TS to 0.413\%, and UCB
+with $c=0.01$ reaches 0.502\%, a 52\% lift and the only significant result on
+the 80 item file ($p=0.02$). With $c=1$ the bonus in~\eqref{eq:ucb} is about
+0.2 after a few thousand events, around 70 times the size of the CTRs it is
+added to, so UCB mostly rotates through the items; on the 10 item file it shows
+every item about 10\% of the time, exactly like Random (code Table~9). Even
+the best policy leaves about 60\% of the Oracle's advantage over Random on the
+table: there are simply too few clicks to identify the best of 79 items within
+one week of uniformly logged data.
+
+\subsection{Where to place the items}
+
+The brief also asks where to place the items. If the best item depended on
+the slot, a policy should learn a separate ranking for the left, centre and
+right position. The five best items per position overlap heavily (items 33,
+34, 38, 57 and 59 appear in several slots, code Table~10). A likelihood ratio
+test of the logistic model with item and position effects against a model
+with a separate rate for every item and position rejects at the textbook
+level ($\text{LR}=332.0$, 156 degrees of freedom, $p<10^{-14}$). That test,
+however, assumes independent rows. When we swap the three position labels
+between slots at random within every hour, which keeps the streaks intact but
+removes any real link between slot and item, the placebo statistics average
+323.3 and the permutation $p$-value is 0.38 (code Table~11). We find no
+evidence that the best item depends on the slot. Consistently, TS with one
+model per position does not beat one model for all positions (0.399\% and
+0.395\% against 0.387\%, code Table~12). The practical answer is to show the
+best items and not to spend data on learning a ranking per slot.
+
+% ============================================================================
+\section{Question (b): batch size}
+\label{sec:b}
+% ============================================================================
+
+A production system does not update after every impression; it collects
+results and updates in batches. With batch size $B$ the policy keeps its
+beliefs fixed for $B$ matched events and then processes all of them at once.
+We vary $B$ from 1 to 5{,}000 for TS and for UCB with $c=0.01$
+(Table~\ref{tab:b}).
+
+\begin{table}[H]
+  \centering
+  \caption{CTR (\%) for different batch sizes, 5 runs each (code Table~14).
+    Random replays at 0.261\% (10 items) and 0.330\% (80 items).}
+  \label{tab:b}
+  \small
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    Batch size & 1 & 10 & 100 & 500 & 1{,}000 & 5{,}000 \\
+    \midrule
+    TS, 10 items            & 0.405 & 0.392 & 0.343 & 0.337 & 0.365 & 0.353 \\
+    UCB $c=0.01$, 10 items  & 0.425 & 0.403 & 0.421 & 0.348 & 0.368 & 0.274 \\
+    TS, 80 items            & 0.387 & 0.353 & 0.370 & 0.316 & 0.356 & 0.366 \\
+    UCB $c=0.01$, 80 items  & 0.569 & 0.376 & 0.471 & 0.465 & 0.333 & 0.366 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+On the 10 item file both policies lose clicks as batches grow, but in
+different ways. TS loses some of its advantage and then levels off; at
+$B=5{,}000$, which leaves only three or four updates in the whole week, it
+still gets 0.353\%, well above Random. UCB hardly suffers up to $B=100$ and
+then falls to 0.274\%, Random level. The difference follows from the
+algorithms. During a batch UCB's index does not change, so it shows the same
+item for the whole batch; a weak choice is repeated thousands of times. TS
+keeps drawing from its posterior and spreads the batch over several promising
+items. This agrees with \citet{chapelle2011}, who found that TS copes well with delayed
+feedback. On the 80 item file the picture is weaker: TS barely learns at any
+batch size, so there is little to lose, and UCB's results vary so much
+between runs (standard deviation across runs up to 0.13 percentage points)
+that the drop is not clear beyond $B=1$. A second effect shows in the
+matched counts: while UCB holds one choice during a batch it also catches the
+streaks in the log, and its matched events rise from 12{,}930 at $B=1$ to
+about 17{,}000 at $B\geq 100$ (10 items).
+
+% ============================================================================
+\section{Question (c): tuning}
+\label{sec:c}
+% ============================================================================
+
+We vary the prior of TS and the bonus scale $c$ of UCB (Figure~\ref{fig:tuning}).
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_5_tuning_80items.png}{0.9}
+  \caption{CTR for TS with prior $\text{Beta}(1,b)$ (left) and UCB with bonus
+    scale $c$ (right) on the 80 item file, 5 runs per setting, with
+    $\pm 1.96$ binomial standard errors; the dashed line is Random
+    (code Figure~5, code Tables~15 and 16).}
+  \label{fig:tuning}
+\end{figure}
+
+For TS the prior matters most when there are many arms. On the 80 item file
+CTR rises from 0.387\% with the flat prior to 0.420\% with $\text{Beta}(1,300)$
+and 0.483\% with $\text{Beta}(1,1000)$, whose prior means of 0.33\% and 0.10\%
+are on the scale of the real CTRs. A flat prior claims that a CTR of 50\% is
+as likely as one of 0.3\%, and the data spends most of its clicks correcting
+that claim. On the 10 item file, with about 1{,}700 matched events per item,
+the data overrides any prior and all settings lie within noise of each other
+(0.31 to 0.42\%, code Table~15).
+
+UCB is more sensitive. On the 10 item file CTR follows a hill in $c$: 0.300\%
+at $c=1$, 0.444\% at $c=0.03$ and 0.341\% at $c=0.001$. A large bonus keeps
+UCB exploring; a very small one makes it commit to whichever item looked best
+early, which is sometimes an item that was lucky. On the 80 item file the best
+values are $c=0.01$ (0.569\%) and $c=0.1$ (0.528\%) (code Table~16). A bonus
+on the scale of the CTRs, not on the scale of $[0,1]$ rewards for which UCB1 was
+designed, is what makes UCB work here.
+
+These best settings were chosen on the same log on which they are scored, so
+they flatter the tuned policies. As a fairer check we choose the setting on
+days 1 and 2 only and score it on days 3 to 7 (code Table~17). On the 80 item
+file the choice for UCB is $c=0.1$, which scores 0.502\% on the later days
+against 0.424\% for the default and 0.378\% for Random, so tuning UCB helps out
+of sample. The choice for TS, $\text{Beta}(1,30)$, does not help (0.372\%
+against 0.381\%). On the 10 item file the first two days leave only about a dozen
+matched clicks, too few to separate the settings, and the defaults are chosen. In
+practice $c$ and the prior have to be set before launch, ideally from earlier
+data on the site's typical CTR.
+
+Finally, replaying the log in shuffled order removes the streaks. UCB with
+$c=1$ then matches 17{,}112 events instead of 10{,}639 on the 80 item file
+(code Table~18). The CTRs are lower in shuffled order for five of the six
+policy and file combinations, by 0.05 to 0.11 percentage points (for example
+0.569\% against 0.501\% for UCB with $c=0.01$). Each gap is about one standard
+error, but the consistent direction suggests that replay on this log slightly
+favours policies that stay with one item, perhaps because clicks cluster
+within streaks. \todo{Random in time order vs shuffled from code Table~18:
+if Random shows no gap, write that the gap appears only for adaptive
+policies.} The ranking of the policies does not change, but absolute CTRs
+should be read with this caveat.
+
+% ============================================================================
+\section{Question (d): one model or one per user group}
+\label{sec:d}
+% ============================================================================
+
+So far every visitor gets the same recommendation. If user groups prefer
+different items, one model per group could do better, but each group model
+then learns from a fraction of the data. We compare three designs for each of
+the four user features: one pooled TS, one TS per level of the feature
+starting from $\text{Beta}(1,1)$, and one TS per level that borrows from the
+pooled model. In the last design the prior of item $k$ for group $g$ is
+%
+\begin{equation}
+  a_{0,k} = 1 + w_k\,\bar p_k, \qquad b_{0,k} = 1 + w_k\,(1-\bar p_k),
+  \qquad w_k = \min(m, N_k),
+  \label{eq:borrow}
+\end{equation}
+%
+where $\bar p_k$ and $N_k$ are the CTR and the number of matched events of
+item $k$ in the pooled model so far and $m=1{,}000$. A small group stays close
+to the pooled estimate; a large group soon outweighs the borrowed $m$ shows
+with its own data. This is shrinkage towards the pooled mean. The pooled
+counts are built during the replay from past events only, so the policy uses
+no information that a live system would not have. A group's own clicks are
+counted in both terms, which double counts them slightly; the cap $m$ keeps
+this small.
+
+\begin{table}[H]
+  \centering
+  \caption{CTR (\%) of pooled and per group TS on the 80 item file, 5 runs
+    each (code Table~19). Random gives 0.341\% and pooled TS 0.387\% in the
+    same runs; one standard error is about 0.05.}
+  \label{tab:d}
+  \small
+  \begin{tabular}{lrrrr}
+    \toprule
+    & user\_feature\_0 & user\_feature\_1 & user\_feature\_2 & user\_feature\_3 \\
+    Levels & 4 & 6 & 10 & 10 \\
+    \midrule
+    Per group TS, from zero    & 0.342 & 0.374 & 0.357 & 0.405 \\
+    Per group TS, borrowing    & 0.494 & 0.388 & 0.362 & 0.395 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+Splitting from zero never beats the pooled model (Table~\ref{tab:d}). Each
+group model starts with no knowledge and has too few clicks to learn.
+Borrowing helps clearly only for \texttt{user\_feature\_0}, the feature with
+the fewest and largest groups: 0.494\% against 0.387\% for the pooled model.
+For the features with ten levels, many of them small, it makes no
+difference. Within \texttt{user\_feature\_0} all three evaluable groups gain
+(code Table~20). Group 3, with 150{,}691 rows, is the clearest case: the
+pooled model lifts its CTR by 14\% over Random, the per group model with
+borrowing by 100\%, so this group prefers different items from the majority.
+Group 0 has 6{,}641 rows and about 80 matched events per run, too few to
+learn anything or even to measure how well it is served. Aggregation wastes
+the differences between groups; full disaggregation wastes data. Borrowing
+gets most of both, but only where groups are large enough.
+
+% ============================================================================
+\section{Question (e): fairness}
+\label{sec:e}
+% ============================================================================
+
+A policy that maximises clicks can be unfair in two ways. It can concentrate
+exposure on a few items, so that the other sellers are hardly seen and an item
+that was unlucky early never gets a second chance (fairness to items). It can
+also serve some user groups much better than others, usually small groups or
+groups whose taste differs from the majority (fairness to users).
+
+We measure fairness to items with the Gini coefficient of the exposure shares
+$e_k$ (the share of matched events in which item $k$ was shown),
+%
+\begin{equation}
+  G = \frac{2\sum_{i=1}^{K} i\, e_{(i)}}{K\sum_{i} e_{(i)}} - \frac{K+1}{K},
+  \label{eq:gini}
+\end{equation}
+%
+with $e_{(1)}\leq\dots\leq e_{(K)}$, so $G=0$ means equal exposure. We also
+count the items that receive less than half of the fair share $1/K$, and
+report the rank correlation between exposure and item CTR, which shows
+whether exposure follows merit. For fairness to users we compute, per level
+of \texttt{user\_feature\_0}, the CTR divided by Random's CTR in the same
+group (the lift), and report the worst group's lift and the gap between the
+best and the worst group. Groups with fewer than 500 matched events per run
+are left out because their lift cannot be estimated; on the 80 item file this
+excludes group 0.
+
+As fairness extension we add a minimum exposure guarantee. A wrapper around
+any policy promises every item at least a fraction $\phi$ of its fair share:
+whenever some item has been shown fewer than $\phi\, n/K$ times after $n$
+matched events, the wrapper shows the most neglected item; otherwise the base
+policy decides. We put the floor on UCB, the policy that concentrates
+exposure, with $\phi = 0.25$ and $\phi = 0.5$.
+
+\begin{table}[H]
+  \centering
+  \caption{Clicks against fairness on the 80 item file, 5 runs each
+    (code Table~21). Fair share per item is $1/79 = 1.27\%$.}
+  \label{tab:e}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrrrr}
+    \toprule
+    & & \multicolumn{3}{c}{Fairness to items} & \multicolumn{2}{c}{Fairness to users} \\
+    \cmidrule(lr){3-5}\cmidrule(lr){6-7}
+    Policy & CTR (\%) & Gini & Items $<\tfrac12$ share & Exposure vs CTR & Worst lift & Gap \\
+    \midrule
+    Random                      & 0.34 & 0.021 &  0 & $-0.06$ & 1.00 & 0.00 \\
+    TS                          & 0.39 & 0.090 &  0 & 0.69 & 1.10 & 0.05 \\
+    UCB $c=0.01$                & 0.57 & 0.673 & 54 & 0.24 & 0.92 & 1.06 \\
+    UCB + floor $\phi=0.25$     & \todo{} & & & & & \\
+    UCB + floor $\phi=0.5$      & \todo{} & & & & & \\
+    Per group TS, borrowing     & 0.49 & 0.157 &  0 & 0.67 & 1.28 & 0.72 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+The policies sit at different points of the trade-off (Table~\ref{tab:e},
+Figure~\ref{fig:fair}). UCB with $c=0.01$ earns the most clicks, but it puts
+41\% of all exposure on three items and leaves 54 of the 79 items below half
+their fair share. It is also the least fair to users: it lifts group 2 by
+97\% and leaves group 3 slightly below Random (lift 0.92, code Table~22),
+because its few favourite items suit the majority. TS is close to fair on
+both counts: its random draws spread exposure ($G=0.09$), exposure follows
+merit (rank correlation 0.69), and every group gains 10 to 15\%. The price is
+a lower CTR. Per group TS with borrowing gives the best deal for users, the
+highest worst-group lift (1.28) with a moderate Gini of 0.16, because it
+serves each large group with its own favourites.
+
+\todo{Floor results from code Table~21 and 22: how much the Gini and the number
+of starved items fall for $\phi=0.25$ and $\phi=0.5$, what it costs in CTR,
+and how the group lifts change. In the 20 item test the floor $\phi=0.5$ cut
+the Gini of UCB from 0.64 to 0.38 and left no item below half its share.}
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_6_fairness_80items.png}{0.7}
+  \caption{CTR against the Gini of item exposure on the 80 item file; error
+    bars are $\pm 1.96$ binomial standard errors (code Figure~6).}
+  \label{fig:fair}
+\end{figure}
+
+% ============================================================================
+\section{Question (f): is the data stationary?}
+\label{sec:f}
+% ============================================================================
+
+Two kinds of change matter differently for a bandit. If all items become more
+or less popular together, the best item stays the best and a stationary policy
+still picks correctly. If the ranking of the items changes, a policy that
+averages over the whole past keeps showing yesterday's winner. We test both on
+the 80 item file.
+
+All textbook tests assume independent rows, and the streaks in the log violate
+that. We therefore calibrate every test with a block permutation placebo: the
+168 hours of the week are dealt out at random into placebo days (or halves),
+keeping each hour intact, and the test statistic is recomputed 200 times. A
+placebo split keeps the dependence between nearby rows but contains no real
+trend, so it shows how large the statistic gets by chance. The permutation
+$p$-value is the share of placebo statistics at least as extreme as the real
+one.
+
+\begin{table}[H]
+  \centering
+  \caption{Stationarity tests on the 80 item file (code Tables~23 to 25).
+    Placebo values come from 200 hour block permutations.}
+  \label{tab:f}
+  \footnotesize
+  \setlength{\tabcolsep}{4pt}
+  \begin{tabular}{lrrrrr}
+    \toprule
+    Test & Statistic & Textbook $p$ & Placebo mean & Placebo 95\% & Perm.\ $p$ \\
+    \midrule
+    Equal daily CTR, $\chi^2$ (6 df)          & 27.5  & 0.0001          & 12.4  & 24.4   & 0.015 \\
+    Item ranking, halves (Spearman $\rho$)    & 0.772 &                 & 0.747 & 0.684$^{a}$ & 0.74 \\
+    Item $\times$ half, LR (78 df)            & 136.8 & 0.00004         & 166.4 & 207.1  & 0.89 \\
+    Item $\times$ day, LR (468 df)            & 928.7 & $<10^{-6}$      & 972.4 & 1{,}057.8 & 0.82 \\
+    \bottomrule
+    \multicolumn{6}{l}{\footnotesize $^{a}$ 5th percentile, since a change in the ranking lowers $\rho$.}
+  \end{tabular}
+\end{table}
+
+The textbook tests all reject stationarity, but the placebo values show why
+they cannot be trusted here: even random groupings of hours give a $\chi^2$ of
+12.4 on average instead of the 6 expected under independence
+(Table~\ref{tab:f}). After calibration the results split. The overall daily
+CTR does change: the real $\chi^2$ of 27.5 beats 98.5\% of the placebo values
+(permutation $p=0.015$), with Wednesday at 0.303\% and Tuesday at 0.382\%. The
+item ranking does not. The rank correlation of item CTRs between days 1 to 3
+and days 4 to 7 is 0.772, a typical value for a placebo split of hours (mean
+0.747, $p=0.74$; Figure~\ref{fig:halves}). The likelihood ratio tests of an
+item by period interaction in a logistic model of the click give statistics
+below the placebo mean ($p=0.89$ by half week and $p=0.82$ by day). In the
+day-level test 23\% of the cells have fewer than five expected clicks, which
+is one more reason to rely on the permutation version.
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_7_half_split_80items.png}{0.48}
+  \caption{CTR of every item in days 1 to 3 against days 4 to 7, 80 item
+    file; points on the diagonal behave the same in both halves
+    (code Figure~7).}
+  \label{fig:halves}
+\end{figure}
+
+The data is therefore non-stationary in level but stationary in ranking. The
+level shift does not change which item is best, so it does not hurt a bandit
+that only needs the ranking.
+
+% ============================================================================
+\section{Question (g) and extension: policies for a changing environment}
+\label{sec:g}
+% ============================================================================
+
+If the ranking did change, the policies would have to stop weighting old and
+new evidence equally. We implement two such changes and outline a third.
+
+Discounted TS \citep{raj2017} multiplies all counts by $\gamma<1$ after every
+matched event before adding the new result,
+%
+\begin{equation}
+  s_k \leftarrow \gamma s_k + r\,\mathbf{1}\{k=a\}, \qquad
+  f_k \leftarrow \gamma f_k + (1-r)\,\mathbf{1}\{k=a\},
+  \label{eq:dts}
+\end{equation}
+%
+and samples from $\text{Beta}(a_0+s_k, b_0+f_k)$. An event that is $n$ updates
+old keeps weight $\gamma^n$, a memory of about $1/(1-\gamma)$ updates; we use
+$\gamma \in \{0.9999, 0.999, 0.995\}$. Sliding window UCB
+\citep{garivier2011} computes $\hat\mu_k$ and $n_k$ in~\eqref{eq:ucb} from the
+last $W$ matched events only, with $W \in \{5{,}000, 2{,}000, 1{,}000\}$ and
+$c=0.01$. The third option is change point detection, which monitors each
+item's recent CTR and restarts the policy when it departs from the long-run
+value. With 45 to 130 clicks per run spread over 10 to 79 items, a detector
+would have far too little data per item to tell a real change from noise, so
+we do not implement it.
+
+Because the ranking in our data is stable (Section~\ref{sec:f}), we also build
+a log in which it is not: from the middle of the week the item labels are
+reversed by rank, so the rows of the worst item now carry the label of the
+best item, the second worst that of the second best, and so on. The logging
+stays uniform, so replay remains valid. The cost of the flip is a policy's CTR
+in the second half of the real log minus its CTR in the second half of the
+flipped log.
+
+\begin{table}[H]
+  \centering
+  \caption{Forgetting policies on the real log and on the log with the ranking
+    flipped halfway, 5 runs each (code Tables~26 and 27). Cost of the flip in
+    percentage points; lower means the policy adapted better.}
+  \label{tab:g}
+  \small
+  \begin{tabular}{lrrrr}
+    \toprule
+    & \multicolumn{2}{c}{10 items} & \multicolumn{2}{c}{80 items} \\
+    \cmidrule(lr){2-3}\cmidrule(lr){4-5}
+    Policy & CTR real log (\%) & Cost of flip & CTR real log (\%) & Cost of flip \\
+    \midrule
+    TS (never forgets)                 & 0.405 &  0.191 & 0.387 &  0.048 \\
+    Discounted TS $\gamma=0.9999$      & 0.298 & $-0.001$ & 0.374 & $-0.066$ \\
+    Discounted TS $\gamma=0.999$       & 0.334 &  0.035 & 0.391 & $-0.001$ \\
+    Discounted TS $\gamma=0.995$       & 0.330 &  0.012 & 0.351 &  0.022 \\
+    UCB $c=0.01$ (never forgets)       & 0.425 &  0.153 & 0.569 &  0.103 \\
+    Sliding window UCB $W=5{,}000$     & 0.457 &  0.071 & 0.567 &  0.106 \\
+    Sliding window UCB $W=2{,}000$     & 0.409 &  0.054 & 0.513 &  0.053 \\
+    Sliding window UCB $W=1{,}000$     & 0.361 & $-0.062$ & 0.482 &  0.056 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+On the real log, forgetting costs clicks or at best changes nothing
+(Table~\ref{tab:g}). On the 10 item file discounted TS loses 0.07 to 0.11
+percentage points against plain TS, about two standard errors, and the
+shortest window costs UCB 0.06. Throwing away old clicks does not pay when
+the ranking is stable and clicks are scarce. On the flipped log the forgetting
+policies adapt better. The flip costs plain TS 0.19 percentage points on the
+10 item file and every discounted version at most 0.04. On the same file
+sliding window UCB pays between nothing and half of the 0.15 that plain UCB
+pays. Figure~\ref{fig:shift} shows the mechanism: plain TS drops to about
+0.1\% after the flip and needs around 15{,}000 rows to recover, while the
+forgetting policies dip less and recover sooner. On the 80 item file the
+effects are smaller, since TS had learned little before the flip and has
+little to unlearn. Discounted TS with $\gamma=0.9999$ is the only version
+with a noticeable gain there, and the longest window does not help UCB at
+all (cost 0.106 against 0.103).
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_8_shift_10items.png}{0.75}
+  \caption{Moving CTR over the last 1{,}000 matched events on the 10 item log
+    with the ranking flipped halfway (dashed line), mean over runs
+    (code Figure~8). The peak of sliding window UCB rests on about ten clicks
+    per window and overstates its level.}
+  \label{fig:shift}
+\end{figure}
+
+The choice of model therefore depends on the type of change. On the ZOZO
+data, with a level shift and a stable ranking, plain TS or UCB is the better
+choice. Forgetting is the right tool only when evidence suggests that the
+ranking moves, and its memory length should then be set as long as the speed
+of change allows.
+
+% ============================================================================
+\section{Limitations and conclusion}
+% ============================================================================
+
+\todo{Limitations, one paragraph: (1) few clicks after replay, so most
+differences are within one or two standard errors; (2) replay assumes
+independent events, the streaks break this and appear to favour sticky
+policies slightly (code Table~18); (3) tuned settings chosen in hindsight,
+partly checked out of sample; (4) one week of data, Black Friday inside it;
+(5) single-slot evaluation, the three slots are not evaluated as a set,
+because the log does not record which three items were shown together.}
+
+\todo{Conclusion, one paragraph: answer the business question (which items,
+which slot, which policy) in plain terms, with the main numbers from
+Table~\ref{tab:a}.}
+
+% ============================================================================
+\begin{thebibliography}{9}
+\setlength{\itemsep}{2pt}
+\small
+
+\bibitem[Auer et al.(2002)]{auer2002}
+Auer, P., Cesa-Bianchi, N., and Fischer, P. (2002). Finite-time analysis of the
+multiarmed bandit problem. \emph{Machine Learning}, 47(2), 235-256.
+
+\bibitem[Chapelle and Li(2011)]{chapelle2011}
+Chapelle, O., and Li, L. (2011). An empirical evaluation of Thompson Sampling.
+\emph{Advances in Neural Information Processing Systems}, 24.
+
+\bibitem[Garivier and Moulines(2011)]{garivier2011}
+Garivier, A., and Moulines, E. (2011). On upper-confidence bound policies for
+switching bandit problems. \emph{Algorithmic Learning Theory}, 174-188.
+
+\bibitem[Li et al.(2011)]{li2011}
+Li, L., Chu, W., Langford, J., and Wang, X. (2011). Unbiased offline evaluation
+of contextual-bandit-based news article recommendation algorithms.
+\emph{Proceedings of WSDM}, 297-306.
+
+\bibitem[Raj and Kalyani(2017)]{raj2017}
+Raj, V., and Kalyani, S. (2017). Taming non-stationary bandits: a Bayesian
+approach. \emph{arXiv preprint} 1707.09727.
+
+\bibitem[Russo et al.(2018)]{russo2018}
+Russo, D., Van Roy, B., Kazerouni, A., Osband, I., and Wen, Z. (2018). A
+tutorial on Thompson Sampling. \emph{Foundations and Trends in Machine
+Learning}, 11(1), 1-96.
+
+\bibitem[Saito et al.(2021)]{saito2021}
+Saito, Y., Aihara, S., Matsutani, M., and Narita, Y. (2021). Open Bandit
+Dataset and Pipeline: towards realistic and reproducible off-policy
+evaluation. \emph{NeurIPS Datasets and Benchmarks Track}.
+
+\end{thebibliography}
+
+% ============================================================================
+\clearpage
+\appendix
+\section{Appendix}
+% ============================================================================
+% Unlimited pages. Supplementary tables and figures, reproduction notes.
+% ============================================================================
+
+\subsection{Reproduction}
+
+All code is in Python and runs with \texttt{python main.py}, which prints every
+table and figure with its ID and saves them to \texttt{output/} (tables as csv
+and \LaTeX, the full printout in \texttt{output/run\_log.txt}). The random seed
+is fixed (\texttt{random.seed(1)}, and run $i$ of every replay uses seed
+$1+i$), so a rerun gives identical numbers. The full run takes about three
+hours. \todo{Repository link, or note that the code is uploaded with the
+report.}
+
+\begin{table}[H]
+  \centering
+  \caption{Where each question's results are printed by the code.}
+  \label{tab:map}
+  \small
+  \begin{tabular}{lll}
+    \toprule
+    Question & Code tables & Code figures \\
+    \midrule
+    Data                      & 1 to 6   & 1, 2 \\
+    (a) comparison, placement & 7 to 13  & 3 \\
+    (b) batch size            & 14       & 4 \\
+    (c) tuning                & 15 to 18 & 5 \\
+    (d) user groups           & 19, 20   & \\
+    (e) fairness              & 21, 22   & 6 \\
+    (f) stationarity          & 23 to 25 & 7 \\
+    (g) forgetting policies   & 26, 27   & 8 \\
+    \bottomrule
+  \end{tabular}
+\end{table}
+
+\subsection{Supplementary figures}
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_2_daily_ctr.png}{0.6}
+  \caption{Daily CTR on the 80 item file with 95\% Wilson intervals
+    (code Figure~2).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_3_learning_10items.png}{0.7}
+  \caption{Cumulative CTR during replay on the 10 item file (code Figure~3).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_4_batch_10items.png}{0.65}
+  \caption{CTR against batch size on the 10 item file (code Figure~4).}
+\end{figure}
+
+\begin{figure}[H]
+  \centering
+  \codefigure{figure_5_tuning_10items.png}{0.85}
+  \caption{Tuning results on the 10 item file (code Figure~5).}
+\end{figure}
+
+\subsection{Supplementary tables}
+
+\todo{Optional: per group lifts for all four user features (code Table~20),
+the placement tables for the 10 item file (code Tables~10 to 12), and the
+first and second half CTRs of the forgetting policies (code Tables~26 and
+27). Only add what the main text refers to.}
+
+\end{document}

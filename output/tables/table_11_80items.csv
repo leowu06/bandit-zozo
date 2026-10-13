@@ -1,6 +1,9 @@
-setting,prior_mean_percent,mean_matched,mean_clicks,ctr_mean,ctr_sd_runs,se_binomial
-"Beta(1,1)",50.0,17053.2,66.0,0.00387,0.00036,0.00048
-"Beta(1,30)",3.226,17152.8,67.0,0.00391,0.00036,0.00048
-"Beta(1,100)",0.99,17022.2,65.4,0.00384,0.00087,0.00047
-"Beta(1,300)",0.332,17087.6,71.8,0.0042,0.00061,0.00049
-"Beta(1,1000)",0.1,17218.0,83.2,0.00483,0.00087,0.00053
+,value
+periods,3.0
+LR_statistic,331.9967488792267
+df,156.0
+p_value,9.132377126500797e-15
+cells_with_expected_clicks_below_5_percent,0.0
+placebo_mean,323.3126196263123
+placebo_95th_percentile,386.7450987192815
+permutation_p_value,0.38

@@ -1,9 +1,0 @@
-,value
-periods,3.0
-LR_statistic,331.9967488792267
-df,156.0
-p_value,9.132377126500797e-15
-cells_with_expected_clicks_below_5_percent,0.0
-placebo_mean,323.3126196263123
-placebo_95th_percentile,386.7450987192815
-permutation_p_value,0.38
