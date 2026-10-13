@@ -1,0 +1,8 @@
+policy,mean_matched,mean_clicks,ctr_mean,se_binomial,lift_vs_random_percent,regret_per_10000_rows,p_value_vs_random
+Random (logging policy),17191.5,56.8,0.0033,0.00044,0.0,45.35899,1.0
+"TS default Beta(1,1)",17109.3,64.5,0.00377,0.00047,14.06162,40.71185,0.46734
+"TS informed prior Beta(1,300)",17076.5,70.6,0.00413,0.00049,25.04782,37.08109,0.20664
+UCB default c=1,10756.8,43.7,0.00408,0.00061,23.41691,37.62008,0.3026
+UCB tuned c=0.01,11168.5,56.9,0.00502,0.00067,51.99563,28.17528,0.01972
+"Per group TS (user_feature_0), borrowing",17073.2,75.7,0.00443,0.00051,34.1733,34.06527,0.092
+Oracle (best item in hindsight),16325.0,128.0,0.00784,0.00069,137.25032,0.0,0.0

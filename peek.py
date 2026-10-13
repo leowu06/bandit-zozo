@@ -92,7 +92,7 @@ elif what == "ts":
                 "belief_mean_%": (ts.alpha / (ts.alpha + ts.beta) * 100).round(3),
                 "times_shown_so_far": shown,
             })
-            print(f"\n=== After {n} matched rows ===")
+            print(f"\nAfter {n} matched rows:")
             print(snap.sort_values("true_ctr_%", ascending=False).to_string())
     print("\nbelief_mean = alpha / (alpha + beta), TS's current best guess of each item's CTR.")
 

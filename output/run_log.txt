@@ -273,3 +273,379 @@ placebo_mean                                3.233126e+02
 placebo_95th_percentile                     3.867451e+02
 permutation_p_value                         3.800000e-01
 Placebo: within each hour the position labels are swapped between slots at random.
+
+--- Table 12 (80 items): One model for all positions vs one model per position, 5 runs ---
+                         policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+TS, one model for all positions       17053.2         66.0   0.00387      0.00036      0.00048
+     TS per position, from zero       17105.8         68.2   0.00399      0.00051      0.00048
+TS per position, borrowing 1000       17176.0         67.8   0.00395      0.00013      0.00048
+
+--- Table 13 (10 items): Final comparison of default and tuned policies, 10 runs ---
+                         policy  mean_matched  mean_clicks  ctr_mean  se_binomial  lift_vs_random_percent  regret_per_10000_rows  p_value_vs_random
+        Random (logging policy)       17252.0         45.1   0.00261      0.00039                 0.00000               26.38280            1.00000
+           TS default Beta(1,1)       17311.8         65.8   0.00380      0.00047                45.37950               14.52033            0.05111
+  TS informed prior Beta(1,300)       17391.9         68.7   0.00395      0.00048                51.00115               13.05080            0.02980
+                UCB default c=1        4933.0         16.2   0.00330      0.00082                26.32256               19.50193            0.42934
+               UCB tuned c=0.01       12918.3         52.9   0.00398      0.00055                52.31859               12.70641            0.02531
+Oracle (best item in hindsight)       17516.0         92.0   0.00525      0.00055               100.92654                0.00000            0.00009
+p values compare one run worth of matched rows with Random (two proportion z test).
+Tuned settings come from question (c) and were chosen in hindsight on the same log.
+
+--- Table 13b (10 items): Lift over Random (%) with hour-block bootstrap 95% intervals, 100 resamples ---
+                       policy  lift_table_13  bootstrap_mean_lift  bootstrap_sd  ci_95_low  ci_95_high  share_lift_above_0
+TS informed prior Beta(1,300)         51.001               45.402        36.090     -6.645     133.776                0.94
+             UCB tuned c=0.01         52.319               63.836        44.962    -15.368     157.260                0.93
+Each resample draws the 168 hours with replacement and replays every policy once (seed 1 + b).
+The interval covers both the data (dependence within hours kept) and the policy's own randomness.
+
+--- Table 13 (80 items): Final comparison of default and tuned policies, 10 runs ---
+                                  policy  mean_matched  mean_clicks  ctr_mean  se_binomial  lift_vs_random_percent  regret_per_10000_rows  p_value_vs_random
+                 Random (logging policy)       17191.5         56.8   0.00330      0.00044                 0.00000               45.35899            1.00000
+                    TS default Beta(1,1)       17109.3         64.5   0.00377      0.00047                14.06162               40.71185            0.46734
+           TS informed prior Beta(1,300)       17076.5         70.6   0.00413      0.00049                25.04782               37.08109            0.20664
+                         UCB default c=1       10756.8         43.7   0.00408      0.00061                23.41691               37.62008            0.30260
+                        UCB tuned c=0.01       11168.5         56.9   0.00502      0.00067                51.99563               28.17528            0.01972
+Per group TS (user_feature_0), borrowing       17073.2         75.7   0.00443      0.00051                34.17330               34.06527            0.09200
+         Oracle (best item in hindsight)       16325.0        128.0   0.00784      0.00069               137.25032                0.00000            0.00000
+p values compare one run worth of matched rows with Random (two proportion z test).
+Tuned settings come from question (c) and were chosen in hindsight on the same log.
+
+--- Table 13b (80 items): Lift over Random (%) with hour-block bootstrap 95% intervals, 100 resamples ---
+                                  policy  lift_table_13  bootstrap_mean_lift  bootstrap_sd  ci_95_low  ci_95_high  share_lift_above_0
+           TS informed prior Beta(1,300)         25.048               17.259        25.969    -23.756      66.157                0.73
+                        UCB tuned c=0.01         51.996               52.770        50.031    -16.607     149.692                0.83
+Per group TS (user_feature_0), borrowing         34.173               26.056        28.873    -19.427      82.411                0.83
+Each resample draws the 168 hours with replacement and replays every policy once (seed 1 + b).
+The interval covers both the data (dependence within hours kept) and the policy's own randomness.
+
+--- Table 14 (10 items): CTR for different batch sizes, 5 runs each ---
+      policy  batch_size  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+TS Beta(1,1)           1       17307.8         70.0   0.00405      0.00035      0.00048
+  UCB c=0.01           1       12930.0         56.4   0.00425      0.00067      0.00057
+TS Beta(1,1)          10       17250.0         67.6   0.00392      0.00042      0.00048
+  UCB c=0.01          10       16633.8         67.2   0.00403      0.00099      0.00049
+TS Beta(1,1)         100       17408.4         59.8   0.00343      0.00036      0.00044
+  UCB c=0.01         100       17348.6         73.0   0.00421      0.00054      0.00049
+TS Beta(1,1)         500       17269.6         58.2   0.00337      0.00061      0.00044
+  UCB c=0.01         500       17176.2         60.0   0.00348      0.00101      0.00045
+TS Beta(1,1)        1000       17251.0         63.0   0.00365      0.00038      0.00046
+  UCB c=0.01        1000       17401.2         64.2   0.00368      0.00108      0.00046
+TS Beta(1,1)        5000       17399.6         61.4   0.00353      0.00045      0.00045
+  UCB c=0.01        5000       17030.4         46.8   0.00274      0.00063      0.00040
+Random policy on the same data: 0.00261
+
+Figure 4 (10 items) saved: output/figure_4_batch_10items.png
+
+--- Table 14 (80 items): CTR for different batch sizes, 5 runs each ---
+      policy  batch_size  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+TS Beta(1,1)           1       17053.2         66.0   0.00387      0.00036      0.00048
+  UCB c=0.01           1       11869.4         68.4   0.00569      0.00111      0.00069
+TS Beta(1,1)          10       17188.4         60.8   0.00353      0.00055      0.00045
+  UCB c=0.01          10       15920.0         60.0   0.00376      0.00037      0.00049
+TS Beta(1,1)         100       17244.0         63.8   0.00370      0.00071      0.00046
+  UCB c=0.01         100       16999.6         80.0   0.00471      0.00133      0.00053
+TS Beta(1,1)         500       17152.8         54.2   0.00316      0.00032      0.00043
+  UCB c=0.01         500       17155.6         79.8   0.00465      0.00122      0.00052
+TS Beta(1,1)        1000       17318.6         61.6   0.00356      0.00046      0.00045
+  UCB c=0.01        1000       17227.2         57.4   0.00333      0.00058      0.00044
+TS Beta(1,1)        5000       17181.4         63.0   0.00366      0.00081      0.00046
+  UCB c=0.01        5000       17174.2         63.2   0.00366      0.00096      0.00046
+Random policy on the same data: 0.00330
+
+Figure 4 (80 items) saved: output/figure_4_batch_80items.png
+
+--- Table 15 (10 items): TS with different priors Beta(1, b), 5 runs each ---
+     setting  prior_mean_percent  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+   Beta(1,1)              50.000       17307.8         70.0   0.00405      0.00035      0.00048
+  Beta(1,30)               3.226       17315.0         58.2   0.00336      0.00084      0.00044
+ Beta(1,100)               0.990       17268.6         53.4   0.00309      0.00076      0.00042
+ Beta(1,300)               0.332       17487.0         73.2   0.00418      0.00061      0.00049
+Beta(1,1000)               0.100       17331.6         72.4   0.00417      0.00067      0.00049
+
+--- Table 16 (10 items): UCB with different bonus scales c, 5 runs each ---
+setting  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+    c=1        4977.4         14.8   0.00300      0.00090      0.00078
+  c=0.1        5666.2         20.6   0.00363      0.00063      0.00080
+ c=0.03        9012.6         40.8   0.00444      0.00093      0.00070
+ c=0.01       12930.0         56.4   0.00425      0.00067      0.00057
+c=0.003       16474.8         61.0   0.00369      0.00129      0.00047
+c=0.001       16863.2         57.6   0.00341      0.00133      0.00045
+
+Figure 5 (10 items) saved: output/figure_5_tuning_10items.png
+
+--- Table 17 (10 items): Settings chosen on days 1 and 2, scored on days 3 to 7, 10 runs ---
+                         policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+                         Random       12514.4         34.0   0.00272      0.00028      0.00047
+           TS default Beta(1,1)       12554.9         50.9   0.00405      0.00066      0.00057
+TS tuned on days 1-2, Beta(1,1)       12554.9         50.9   0.00405      0.00066      0.00057
+                UCB default c=1        3740.3         11.6   0.00315      0.00109      0.00092
+   UCB tuned on days 1-2, c=1.0        3740.3         11.6   0.00315      0.00109      0.00092
+
+--- Table 18 (10 items): Replay in time order vs shuffled rows, 5 runs ---
+                      policy  row_order  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+                      Random time order       17298.8         47.4   0.00274      0.00024      0.00040
+                      Random   shuffled       17225.8         48.0   0.00279      0.00050      0.00040
+        TS default Beta(1,1) time order       17307.8         70.0   0.00405      0.00035      0.00048
+        TS default Beta(1,1)   shuffled       17301.6         61.0   0.00353      0.00066      0.00045
+             UCB default c=1 time order        4977.4         14.8   0.00300      0.00090      0.00078
+             UCB default c=1   shuffled       17226.8         51.2   0.00297      0.00023      0.00041
+UCB best week setting c=0.03 time order        9012.6         40.8   0.00444      0.00093      0.00070
+UCB best week setting c=0.03   shuffled       17390.0         64.2   0.00369      0.00057      0.00046
+
+--- Table 15 (80 items): TS with different priors Beta(1, b), 5 runs each ---
+     setting  prior_mean_percent  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+   Beta(1,1)              50.000       17053.2         66.0   0.00387      0.00036      0.00048
+  Beta(1,30)               3.226       17152.8         67.0   0.00391      0.00036      0.00048
+ Beta(1,100)               0.990       17022.2         65.4   0.00384      0.00087      0.00047
+ Beta(1,300)               0.332       17087.6         71.8   0.00420      0.00061      0.00049
+Beta(1,1000)               0.100       17218.0         83.2   0.00483      0.00087      0.00053
+
+--- Table 16 (80 items): UCB with different bonus scales c, 5 runs each ---
+setting  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+    c=1       10638.8         46.6   0.00441      0.00103      0.00064
+  c=0.1       10045.8         52.8   0.00528      0.00081      0.00072
+ c=0.03       10196.2         46.6   0.00457      0.00069      0.00067
+ c=0.01       11869.4         68.4   0.00569      0.00111      0.00069
+c=0.003       16281.8         76.6   0.00469      0.00072      0.00054
+c=0.001       16911.8         79.0   0.00467      0.00078      0.00052
+
+Figure 5 (80 items) saved: output/figure_5_tuning_80items.png
+
+--- Table 17 (80 items): Settings chosen on days 1 and 2, scored on days 3 to 7, 10 runs ---
+                          policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+                          Random       12544.6         47.4   0.00378      0.00050      0.00055
+            TS default Beta(1,1)       12456.9         47.5   0.00381      0.00066      0.00055
+TS tuned on days 1-2, Beta(1,30)       12511.1         46.6   0.00372      0.00062      0.00054
+                 UCB default c=1        8129.0         34.4   0.00424      0.00080      0.00072
+    UCB tuned on days 1-2, c=0.1        7588.8         38.1   0.00502      0.00076      0.00081
+
+--- Table 18 (80 items): Replay in time order vs shuffled rows, 5 runs ---
+                      policy  row_order  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+                      Random time order       17171.0         58.6   0.00341      0.00052      0.00045
+                      Random   shuffled       17152.0         60.8   0.00355      0.00054      0.00045
+        TS default Beta(1,1) time order       17053.2         66.0   0.00387      0.00036      0.00048
+        TS default Beta(1,1)   shuffled       17117.0         56.4   0.00329      0.00062      0.00044
+             UCB default c=1 time order       10638.8         46.6   0.00441      0.00103      0.00064
+             UCB default c=1   shuffled       17111.6         56.8   0.00332      0.00024      0.00044
+UCB best week setting c=0.01 time order       11869.4         68.4   0.00569      0.00111      0.00069
+UCB best week setting c=0.01   shuffled       17040.8         85.2   0.00501      0.00144      0.00054
+
+--- Table 19 (80 items): One pooled model vs one model per user group, 5 runs each ---
+       feature                       policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial
+           all                       Random       17171.0         58.6   0.00341      0.00052      0.00045
+           all        Pooled TS (one model)       17053.2         66.0   0.00387      0.00036      0.00048
+user_feature_0      Per group TS, from zero       17125.8         58.6   0.00342      0.00054      0.00045
+user_feature_0 Per group TS, borrowing 1000       17104.6         84.4   0.00494      0.00111      0.00054
+user_feature_1      Per group TS, from zero       17083.0         63.8   0.00374      0.00043      0.00047
+user_feature_1 Per group TS, borrowing 1000       17015.6         66.0   0.00388      0.00030      0.00048
+user_feature_2      Per group TS, from zero       17048.4         60.8   0.00357      0.00024      0.00046
+user_feature_2 Per group TS, borrowing 1000       17125.2         62.0   0.00362      0.00049      0.00046
+user_feature_3      Per group TS, from zero       17059.6         69.2   0.00405      0.00074      0.00049
+user_feature_3 Per group TS, borrowing 1000       17119.4         67.6   0.00395      0.00065      0.00048
+
+--- Table 20 (80 items, user_feature_0): CTR and lift over Random per user group, 5 runs ---
+                rows_in_log  random_ctr  pooled_ctr  from_zero_ctr  from_zero_matched  borrow_ctr  borrow_matched  pooled_lift  from_zero_lift  borrow_lift
+user_feature_0                                                                                                                                             
+0                      6641     0.00000     0.00233        0.00251               79.6     0.00255            78.4          inf             inf          inf
+1                    479757     0.00361     0.00397        0.00348             6036.4     0.00464          6038.6      1.09822         0.96302      1.28355
+2                    719581     0.00341     0.00393        0.00372             9094.6     0.00496          9081.4      1.15198         1.08915      1.45215
+3                    150691     0.00294     0.00335        0.00188             1915.2     0.00588          1906.2      1.13975         0.64017      2.00105
+
+--- Table 20 (80 items, user_feature_1): CTR and lift over Random per user group, 5 runs ---
+                rows_in_log  random_ctr  pooled_ctr  from_zero_ctr  from_zero_matched  borrow_ctr  borrow_matched  pooled_lift  from_zero_lift  borrow_lift
+user_feature_1                                                                                                                                             
+0                    723319     0.00331     0.00380        0.00357             9072.6     0.00394          9036.8      1.14962         1.07932      1.19062
+1                     79455     0.00492     0.00532        0.00479             1001.8     0.00448           982.0      1.08110         0.97303      0.90993
+2                     11743     0.00284     0.00266        0.00402              149.4     0.00132           151.4      0.93875         1.41566      0.46565
+3                       329     0.00000     0.00000        0.00000                3.8     0.00000             4.8          NaN             NaN          NaN
+4                    479757     0.00361     0.00397        0.00382             6077.4     0.00406          6057.2      1.09822         1.05673      1.12423
+5                     62067     0.00127     0.00232        0.00360              778.0     0.00153           783.4      1.82646         2.83167      1.20521
+
+--- Table 20 (80 items, user_feature_2): CTR and lift over Random per user group, 5 runs ---
+                rows_in_log  random_ctr  pooled_ctr  from_zero_ctr  from_zero_matched  borrow_ctr  borrow_matched  pooled_lift  from_zero_lift  borrow_lift
+user_feature_2                                                                                                                                             
+0                    213203     0.00288     0.00319        0.00407             2650.4     0.00348          2698.4      1.10707         1.41272      1.20772
+1                     44715     0.00428     0.00469        0.00334              539.0     0.00489           572.2      1.09505         0.78006      1.14302
+2                    479757     0.00361     0.00397        0.00374             6046.0     0.00396          6061.8      1.09822         1.03474      1.09598
+3                    126405     0.00336     0.00378        0.00343             1575.8     0.00331          1572.0      1.12651         1.02132      0.98587
+4                       523     0.00000     0.00000        0.00000                7.2     0.00000             3.8          NaN             NaN          NaN
+5                    140662     0.00394     0.00409        0.00362             1770.2     0.00312          1794.0      1.04015         0.91852      0.79304
+6                    134892     0.00421     0.00438        0.00396             1716.0     0.00399          1706.0      1.04043         0.94147      0.94699
+7                     12457     0.00776     0.00261        0.00244              163.8     0.00383           156.8      0.33682         0.31461      0.49298
+8                    204026     0.00222     0.00383        0.00256             2579.2     0.00297          2559.6      1.72583         1.15346      1.33840
+9                        30     0.00000     0.00000        0.00000                0.8     0.00000             0.6          NaN             NaN          NaN
+
+--- Table 20 (80 items, user_feature_3): CTR and lift over Random per user group, 5 runs ---
+                rows_in_log  random_ctr  pooled_ctr  from_zero_ctr  from_zero_matched  borrow_ctr  borrow_matched  pooled_lift  from_zero_lift  borrow_lift
+user_feature_3                                                                                                                                             
+0                     49695     0.00158     0.00193        0.00353              623.4     0.00289           622.6      1.21888         2.23247      1.82891
+1                     81011     0.00295     0.00360        0.00230             1044.2     0.00384          1041.4      1.21942         0.77947      1.30261
+2                        68     0.00000     0.00000        0.00000                0.6     0.00000             1.4          NaN             NaN          NaN
+3                     14235     0.00640     0.00463        0.00107              186.4     0.00428           186.8      0.72299         0.16756      0.66881
+4                    479757     0.00361     0.00397        0.00489             6016.4     0.00418          6035.0      1.09822         1.35270      1.15589
+5                      1480     0.00000     0.00000        0.00000               22.2     0.00000            20.2          NaN             NaN          NaN
+6                    324207     0.00358     0.00396        0.00332             4091.6     0.00416          4088.2      1.10535         0.92745      1.16028
+7                    307223     0.00318     0.00375        0.00425             3858.0     0.00414          3909.8      1.17790         1.33478      1.30104
+8                        16         NaN         NaN            NaN                NaN         NaN             NaN          NaN             NaN          NaN
+9                     98978     0.00351     0.00464        0.00411             1216.8     0.00214          1214.0      1.32226         1.17166      0.61067
+
+--- Table 21 (80 items): Clicks against fairness to items and to users, 5 runs each ---
+                                       policy  ctr_mean  se_binomial  gini_exposure  top3_share  least_shown_item_share  items_below_half_fair_share  spearman_exposure_vs_ctr  worst_group_lift  best_group_lift  group_lift_gap
+                                       Random    0.0034       0.0004         0.0209      0.0410                  0.0115                            0                   -0.0576            1.0000           1.0000          0.0000
+                                           TS    0.0039       0.0005         0.0902      0.0577                  0.0098                            0                    0.6869            1.0982           1.1520          0.0538
+                                   UCB c=0.01    0.0057       0.0007         0.6727      0.4070                  0.0028                           54                    0.2364            0.9174           1.9732          1.0558
+             UCB c=0.01 + exposure floor 0.25    0.0057       0.0007         0.6264      0.3491                  0.0032                           50                    0.2831            0.8053           2.0126          1.2074
+              UCB c=0.01 + exposure floor 0.5    0.0044       0.0006         0.3516      0.1707                  0.0063                            0                    0.5365            1.0763           1.3298          0.2535
+Per group TS (user_feature_0), borrowing 1000    0.0049       0.0005         0.1570      0.0773                  0.0088                            0                    0.6667            1.2836           2.0010          0.7175
+Group lifts use user_feature_0; groups with fewer than 500 matched rows per run are left out:
+they are too small to judge (that is itself a fairness problem).
+
+--- Table 22 (80 items, user_feature_0): Lift over Random per user group, 5 runs each ---
+       rows_in_log  random_ctr  TS lift  UCB c=0.01 lift  UCB c=0.01 + exposure floor 0.25 lift  UCB c=0.01 + exposure floor 0.5 lift  Per group TS (same feature), borrowing lift
+group                                                                                                                                                                             
+1           479757       0.004    1.098            1.487                                  1.479                                 1.330                                        1.284
+2           719581       0.003    1.152            1.973                                  2.013                                 1.314                                        1.452
+3           150691       0.003    1.140            0.917                                  0.805                                 1.076                                        2.001
+Groups left out as too small: [0]
+
+--- Table 22 (80 items, user_feature_1): Lift over Random per user group, 5 runs each ---
+       rows_in_log  random_ctr  TS lift  UCB c=0.01 lift  UCB c=0.01 + exposure floor 0.25 lift  UCB c=0.01 + exposure floor 0.5 lift  Per group TS (same feature), borrowing lift
+group                                                                                                                                                                             
+0           723319       0.003    1.150            1.610                                  1.609                                 1.224                                        1.191
+1            79455       0.005    1.081            1.960                                  2.260                                 1.401                                        0.910
+4           479757       0.004    1.098            1.487                                  1.479                                 1.330                                        1.124
+5            62067       0.001    1.826            3.795                                  3.443                                 2.512                                        1.205
+Groups left out as too small: [2, 3]
+
+--- Table 22 (80 items, user_feature_2): Lift over Random per user group, 5 runs each ---
+       rows_in_log  random_ctr  TS lift  UCB c=0.01 lift  UCB c=0.01 + exposure floor 0.25 lift  UCB c=0.01 + exposure floor 0.5 lift  Per group TS (same feature), borrowing lift
+group                                                                                                                                                                             
+0           213203       0.003    1.107            1.484                                  1.125                                 1.234                                        1.208
+1            44715       0.004    1.095            4.001                                  4.132                                 1.766                                        1.143
+2           479757       0.004    1.098            1.487                                  1.479                                 1.330                                        1.096
+3           126405       0.003    1.127            1.549                                  1.434                                 0.898                                        0.986
+5           140662       0.004    1.040            2.401                                  2.941                                 1.097                                        0.793
+6           134892       0.004    1.040            1.536                                  1.471                                 1.337                                        0.947
+8           204026       0.002    1.726            1.244                                  1.404                                 1.617                                        1.338
+Groups left out as too small: [4, 7, 9]
+
+--- Table 22 (80 items, user_feature_3): Lift over Random per user group, 5 runs each ---
+       rows_in_log  random_ctr  TS lift  UCB c=0.01 lift  UCB c=0.01 + exposure floor 0.25 lift  UCB c=0.01 + exposure floor 0.5 lift  Per group TS (same feature), borrowing lift
+group                                                                                                                                                                             
+0            49695       0.002    1.219            2.877                                  2.491                                 2.583                                        1.829
+1            81011       0.003    1.219            1.449                                  2.308                                 0.735                                        1.303
+4           479757       0.004    1.098            1.487                                  1.479                                 1.330                                        1.156
+6           324207       0.004    1.105            1.984                                  1.982                                 1.254                                        1.160
+7           307223       0.003    1.178            2.002                                  1.936                                 1.410                                        1.301
+9            98978       0.004    1.322            1.177                                  1.084                                 1.402                                        0.611
+Groups left out as too small: [2, 3, 5, 8]
+
+--- Table 22 (80 items): Worst and best group lift over Random for every user feature, 5 runs each ---
+       feature                                 policy  worst_group_lift  best_group_lift   gap  groups_used
+user_feature_0                                     TS             1.098            1.152 0.054            3
+user_feature_0                             UCB c=0.01             0.917            1.973 1.056            3
+user_feature_0       UCB c=0.01 + exposure floor 0.25             0.805            2.013 1.207            3
+user_feature_0        UCB c=0.01 + exposure floor 0.5             1.076            1.330 0.253            3
+user_feature_0 Per group TS (same feature), borrowing             1.284            2.001 0.717            3
+user_feature_1                                     TS             1.081            1.826 0.745            4
+user_feature_1                             UCB c=0.01             1.487            3.795 2.308            4
+user_feature_1       UCB c=0.01 + exposure floor 0.25             1.479            3.443 1.964            4
+user_feature_1        UCB c=0.01 + exposure floor 0.5             1.224            2.512 1.288            4
+user_feature_1 Per group TS (same feature), borrowing             0.910            1.205 0.295            4
+user_feature_2                                     TS             1.040            1.726 0.686            7
+user_feature_2                             UCB c=0.01             1.244            4.001 2.757            7
+user_feature_2       UCB c=0.01 + exposure floor 0.25             1.125            4.132 3.007            7
+user_feature_2        UCB c=0.01 + exposure floor 0.5             0.898            1.766 0.869            7
+user_feature_2 Per group TS (same feature), borrowing             0.793            1.338 0.545            7
+user_feature_3                                     TS             1.098            1.322 0.224            6
+user_feature_3                             UCB c=0.01             1.177            2.877 1.699            6
+user_feature_3       UCB c=0.01 + exposure floor 0.25             1.084            2.491 1.407            6
+user_feature_3        UCB c=0.01 + exposure floor 0.5             0.735            2.583 1.849            6
+user_feature_3 Per group TS (same feature), borrowing             0.611            1.829 1.218            6
+Groups with fewer than 500 matched rows per run under Random are left out.
+
+Figure 6 (80 items) saved: output/figure_6_fairness_80items.png
+
+--- Table 23 (80 items): Clicks per day and test of equal daily CTR ---
+                    rows  clicks  non_clicks      ctr
+2019-11-24 (Sun)  203973     688      203285  0.00337
+2019-11-25 (Mon)  161802     522      161280  0.00323
+2019-11-26 (Tue)  177180     676      176504  0.00382
+2019-11-27 (Wed)  206928     628      206300  0.00303
+2019-11-28 (Thu)  228254     841      227413  0.00368
+2019-11-29 (Fri)  197805     689      197116  0.00348
+2019-11-30 (Sat)  180728     676      180052  0.00374
+chi2                        27.541830
+df                           6.000000
+p_value                      0.000115
+smallest_expected_count    562.926460
+placebo_mean                12.353261
+placebo_95th_percentile     24.382522
+permutation_p_value          0.015000
+
+--- Table 24 (80 items): Item CTR ranking, first vs second half of the week ---
+spearman_first_vs_second_half                0.7718
+spearman_random_halves_mean                  0.8702
+spearman_random_halves_min                   0.8230
+spearman_random_halves_max                   0.9099
+top10_items_in_both_halves                   3.0000
+spearman_hour_block_halves_mean              0.7469
+spearman_hour_block_halves_5th_percentile    0.6835
+permutation_p_value                          0.7400
+A real change in the ranking would give a first vs second half correlation
+below the hour block placebo values (small permutation p value).
+
+Figure 7 (80 items) saved: output/figure_7_half_split_80items.png
+
+--- Table 25 (80 items): Likelihood ratio test, do items change differently over time? ---
+       split  periods  LR_statistic  df  p_value  placebo_mean  placebo_95th_percentile  permutation_p_value  cells_with_expected_clicks_below_5_percent
+by half week        2     136.77131  78  0.00004     166.42721                207.08051                0.885                                         0.0
+      by day        7     928.71352 468  0.00000     972.43568               1057.80757                0.820                                        23.0
+
+--- Table 26 (10 items): Forgetting policies on the real log, 5 runs each ---
+                    policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial  ctr_first_half  ctr_second_half
+        TS (never forgets)       17307.8         70.0   0.00405      0.00035      0.00048         0.00294          0.00506
+Discounted TS gamma=0.9999       17187.0         51.2   0.00298      0.00044      0.00042         0.00235          0.00355
+ Discounted TS gamma=0.999       16991.8         56.8   0.00334      0.00030      0.00044         0.00292          0.00374
+ Discounted TS gamma=0.995       16705.0         55.2   0.00330      0.00044      0.00044         0.00287          0.00370
+UCB c=0.01 (never forgets)       12930.0         56.4   0.00425      0.00067      0.00057         0.00333          0.00469
+ Sliding window UCB W=5000       12325.2         56.8   0.00457      0.00061      0.00061         0.00341          0.00543
+ Sliding window UCB W=2000       10282.0         42.4   0.00409      0.00068      0.00063         0.00290          0.00502
+ Sliding window UCB W=1000        8760.6         31.8   0.00361      0.00039      0.00064         0.00311          0.00400
+
+--- Table 27 (10 items): Forgetting policies on the log with the ranking flipped halfway, 5 runs each ---
+                    policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial  ctr_first_half  ctr_second_half  cost_of_flip
+        TS (never forgets)       17237.0         52.6   0.00305      0.00032      0.00042         0.00294          0.00315       0.00191
+Discounted TS gamma=0.9999       17158.6         51.2   0.00298      0.00045      0.00042         0.00235          0.00356      -0.00001
+ Discounted TS gamma=0.999       17066.6         54.0   0.00316      0.00030      0.00043         0.00292          0.00339       0.00035
+ Discounted TS gamma=0.995       16670.8         54.0   0.00324      0.00018      0.00044         0.00287          0.00358       0.00012
+UCB c=0.01 (never forgets)       11754.0         39.6   0.00331      0.00113      0.00053         0.00333          0.00316       0.00153
+ Sliding window UCB W=5000       11891.2         50.2   0.00415      0.00092      0.00059         0.00341          0.00472       0.00071
+ Sliding window UCB W=2000       10095.6         39.2   0.00386      0.00060      0.00062         0.00290          0.00448       0.00054
+ Sliding window UCB W=1000        9307.2         36.6   0.00390      0.00072      0.00065         0.00311          0.00462      -0.00062
+
+Figure 8 (10 items) saved: output/figure_8_shift_10items.png
+
+--- Table 26 (80 items): Forgetting policies on the real log, 5 runs each ---
+                    policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial  ctr_first_half  ctr_second_half
+        TS (never forgets)       17053.2         66.0   0.00387      0.00036      0.00048         0.00357          0.00415
+Discounted TS gamma=0.9999       17151.6         64.2   0.00374      0.00023      0.00047         0.00392          0.00358
+ Discounted TS gamma=0.999       16937.8         66.2   0.00391      0.00045      0.00048         0.00396          0.00386
+ Discounted TS gamma=0.995       16339.8         57.4   0.00351      0.00041      0.00046         0.00350          0.00353
+UCB c=0.01 (never forgets)       11869.4         68.4   0.00569      0.00111      0.00069         0.00490          0.00624
+ Sliding window UCB W=5000       11056.2         62.4   0.00567      0.00104      0.00071         0.00541          0.00581
+ Sliding window UCB W=2000        9511.8         49.6   0.00513      0.00118      0.00073         0.00511          0.00508
+ Sliding window UCB W=1000        8441.2         41.0   0.00482      0.00098      0.00075         0.00516          0.00443
+
+--- Table 27 (80 items): Forgetting policies on the log with the ranking flipped halfway, 5 runs each ---
+                    policy  mean_matched  mean_clicks  ctr_mean  ctr_sd_runs  se_binomial  ctr_first_half  ctr_second_half  cost_of_flip
+        TS (never forgets)       17075.4         61.8   0.00362      0.00043      0.00046         0.00357          0.00367       0.00048
+Discounted TS gamma=0.9999       17064.4         69.8   0.00409      0.00063      0.00049         0.00392          0.00424      -0.00066
+ Discounted TS gamma=0.999       16911.0         66.2   0.00391      0.00050      0.00048         0.00396          0.00387      -0.00001
+ Discounted TS gamma=0.995       16356.8         55.6   0.00340      0.00042      0.00046         0.00350          0.00331       0.00022
+UCB c=0.01 (never forgets)       11382.4         60.6   0.00523      0.00107      0.00068         0.00490          0.00521       0.00103
+ Sliding window UCB W=5000       10572.0         55.4   0.00521      0.00085      0.00070         0.00541          0.00475       0.00106
+ Sliding window UCB W=2000        9413.6         47.0   0.00495      0.00088      0.00072         0.00511          0.00455       0.00053
+ Sliding window UCB W=1000        8059.0         37.6   0.00461      0.00107      0.00075         0.00516          0.00387       0.00056
+
+Figure 8 (80 items) saved: output/figure_8_shift_80items.png

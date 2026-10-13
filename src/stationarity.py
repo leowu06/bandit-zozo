@@ -1,13 +1,10 @@
 """Tests for question (f): do click rates stay the same over the week?
 
-Three checks:
-  A. Overall CTR per day: chi-square test of homogeneity.
-  B. Item rankings in the first vs second half of the week: Spearman rank
-     correlation, compared with the correlation between two random halves
-     (the value we would expect from noise alone if nothing changed).
-  C. Likelihood ratio test: do items change differently over time?
-     Logistic model click ~ item + period against the model where every
-     item has its own rate in every period (item x period).
+Check A asks whether the overall CTR differs between days (chi-square test).
+Check B compares the item ranking in the first and second half of the week
+(Spearman correlation). Check C asks whether items change differently over
+time (likelihood ratio test of an item x period interaction). The same LR
+test, with position instead of period, is used for the placement question.
 """
 import numpy as np
 import pandas as pd
@@ -31,13 +28,13 @@ def daily_chi_square(df):
 
 def item_ctr_by_group(df, group):
     """CTR of every item within each value of `group` (an array of labels)."""
-    g = df.groupby([df["item_id"], group])["click"].mean().unstack()
-    return g
+    return df.groupby([df["item_id"], group])["click"].mean().unstack()
 
 
 def half_split_correlation(df, n_random=20, seed=1):
     """Check B. Spearman correlation of item CTRs between the first three days
-    and the last four, and the same correlation between random halves."""
+    and the last four. For comparison, the same correlation between halves
+    drawn row by row at random."""
     days = sorted(df["timestamp"].dt.date.unique())
     half = np.where(df["timestamp"].dt.date <= days[2], "days 1-3", "days 4-7")
     by_time = item_ctr_by_group(df, half)
@@ -65,14 +62,12 @@ def half_split_correlation(df, n_random=20, seed=1):
 def interaction_lr_test(df, period):
     """Check C. Likelihood ratio test of item x period interaction.
 
-    The data is collapsed to one row per (item, period) with its clicks and
-    shows. A binomial model on these counts has the same likelihood as a
-    logistic regression on the individual rows, but is far faster.
-    Restricted model:  logit P(click) = item effect + period effect
-    Full model:        every (item, period) cell has its own rate (saturated)
-    LR statistic = 2 * (loglik full - loglik restricted), chi-square with
-    (items - 1) * (periods - 1) degrees of freedom under the null of no change
-    in the item ranking.
+    The restricted model is logit P(click) = item effect + period effect. The
+    full model gives every (item, period) cell its own rate. Under the null
+    that items do not change differently, the LR statistic is chi-square with
+    (items - 1) * (periods - 1) degrees of freedom. We fit a binomial model on
+    the clicks per cell, which has the same likelihood as a logistic
+    regression on the single rows but runs much faster.
     """
     cells = (df.assign(period=period)
                .groupby(["item_id", "period"])["click"]
@@ -105,14 +100,13 @@ def hour_blocks(df):
 
 
 def block_permutation(df, n_groups, statistic, n_perm=200, seed=1):
-    """Placebo distribution of a statistic when whole hours are dealt out at
-    random into `n_groups` groups.
+    """Values of a statistic when whole hours are dealt out at random into
+    `n_groups` placebo groups.
 
-    Why: rows that are close in time are not independent (the log shows the
-    same item many rows in a row), so textbook p-values are too small.
-    Shuffling whole hours keeps that dependence but removes any real trend
-    over the week. If the real split by day or half week gives a statistic far
-    outside this placebo range, the change over time is real.
+    Rows close in time are not independent (the same item often shows many
+    rows in a row), so textbook p-values come out too small. Moving whole
+    hours keeps that dependence but removes any trend over the week. A real
+    statistic far outside these placebo values points to a change over time.
     """
     block = hour_blocks(df)
     n_blocks = block.max() + 1
@@ -125,22 +119,23 @@ def block_permutation(df, n_groups, statistic, n_perm=200, seed=1):
 
 
 def chi_square_stat(df, groups):
+    """Chi-square statistic of equal CTR across `groups`."""
     tab = pd.crosstab(groups, df["click"].to_numpy())
     return stats.chi2_contingency(tab.to_numpy())[0]
 
 
 def spearman_stat(df, groups):
+    """Spearman correlation of item CTRs between group 0 and group 1."""
     m = df.groupby([df["item_id"].to_numpy(), groups])["click"].mean().unstack()
     return stats.spearmanr(m.iloc[:, 0], m.iloc[:, 1]).statistic
 
 
 def position_permutation(df, statistic, n_perm=200, seed=1):
-    """Placebo for 'does the best item depend on the position?'.
+    """Placebo test of whether the best item depends on the slot.
 
-    Within every hour, the three position labels are randomly swapped between
-    the three slots. Each slot keeps its own run of rows (so the streaks in the
-    log stay intact), but any real link between position and item ranking is
-    destroyed. The real statistic is then compared with these placebo values.
+    Within every hour the three position labels are swapped at random between
+    the slots. The streaks in the log stay intact, but any real link between
+    slot and item ranking is gone.
     """
     block = hour_blocks(df)
     pos = df["position"].to_numpy() - 1           # 0, 1, 2

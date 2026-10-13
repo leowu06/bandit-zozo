@@ -1,4 +1,4 @@
-"""Descriptive tables and figures for the data section of the report."""
+"""Descriptive tables and all figures of the report."""
 import warnings
 import numpy as np
 import pandas as pd
@@ -10,6 +10,7 @@ import matplotlib.pyplot as plt
 from .data import user_cols
 
 BLUE = "#2a78d6"
+ORANGE = "#eb6834"
 INK = "#52514e"
 
 
@@ -26,6 +27,7 @@ def wilson(clicks, n, z=1.96):
 
 
 def ctr_table(df, by):
+    """Rows, clicks, CTR and Wilson interval for each value of `by`."""
     g = df.groupby(by)["click"].agg(rows="size", clicks="sum")
     g["ctr"] = g["clicks"] / g["rows"]
     g["ci_lo"], g["ci_hi"] = wilson(g["clicks"], g["rows"])
@@ -33,6 +35,7 @@ def ctr_table(df, by):
 
 
 def summary_row(name, df):
+    """One line of Table 1 for one data file."""
     return {
         "file": name,
         "rows": len(df),
@@ -46,6 +49,7 @@ def summary_row(name, df):
 
 
 def style(ax):
+    """Shared look of all figures: no top and right border, light grid."""
     ax.spines[["top", "right"]].set_visible(False)
     ax.spines[["left", "bottom"]].set_color(INK)
     ax.tick_params(colors=INK, labelsize=8)
@@ -54,6 +58,7 @@ def style(ax):
 
 
 def plot_item_ctr(tab, overall, path):
+    """Figure 1: CTR of every item, best first, with its interval."""
     t = tab.sort_values("ctr", ascending=False)
     x = np.arange(len(t))
     fig, ax = plt.subplots(figsize=(9, 3.4))
@@ -73,6 +78,7 @@ def plot_item_ctr(tab, overall, path):
 
 
 def plot_daily_ctr(tab, path):
+    """Figure 2: CTR per day with its interval."""
     x = np.arange(len(tab))
     fig, ax = plt.subplots(figsize=(6, 3))
     ax.fill_between(x, tab["ci_lo"] * 100, tab["ci_hi"] * 100, color=BLUE, alpha=0.15, linewidth=0)
@@ -87,13 +93,10 @@ def plot_daily_ctr(tab, path):
     plt.close(fig)
 
 
-ORANGE = "#eb6834"
-
-
 def plot_learning(curves, oracle_ctr, path, skip=200):
-    """Cumulative CTR against number of matched rows, one line per policy.
-    The first `skip` matches are left out because a CTR over a handful of
-    rows jumps around too much to read."""
+    """Figure 3: cumulative CTR against matched rows, one line per policy.
+    The first `skip` matches are left out, since a CTR over a few rows
+    jumps around too much to read."""
     colors = {"TS": BLUE, "Random": INK, "UCB": ORANGE}
     fig, ax = plt.subplots(figsize=(7, 3.4))
     for name, c in curves.items():
@@ -112,8 +115,8 @@ def plot_learning(curves, oracle_ctr, path, skip=200):
 
 
 def plot_tuning(ts_tab, ucb_tab, random_ctr, path):
-    """Figure 4: CTR for each TS prior and each UCB constant.
-    Two panels side by side, each with its own x axis, same CTR scale."""
+    """Figure 5: CTR for each TS prior (left) and each UCB bonus scale
+    (right), on the same CTR scale."""
     fig, axes = plt.subplots(1, 2, figsize=(9, 3.2), sharey=True)
     panels = [(axes[0], ts_tab, "prior_strength_b", "TS: prior Beta(1, b), b on log scale", BLUE),
               (axes[1], ucb_tab, "c", "UCB: bonus scale c, log scale", ORANGE)]
@@ -135,7 +138,7 @@ def plot_tuning(ts_tab, ucb_tab, random_ctr, path):
 
 
 def plot_batch(tab, random_ctr, path):
-    """Figure 4: CTR against batch size, one line per policy, with a band of
+    """Figure 4: CTR against batch size, one line per policy. The band is
     plus or minus 1.96 binomial standard errors."""
     fig, ax = plt.subplots(figsize=(6.5, 3.3))
     for (label, part), colour in zip(tab.groupby("policy", sort=False), [BLUE, ORANGE]):
@@ -158,8 +161,8 @@ def plot_batch(tab, random_ctr, path):
 
 
 def plot_half_split(by_time, path):
-    """Figure 6: each item's CTR in days 1 to 3 against days 4 to 7.
-    Points on the diagonal mean the item behaved the same in both halves."""
+    """Figure 7: each item's CTR in days 1 to 3 against days 4 to 7.
+    A point on the diagonal did the same in both halves."""
     x = by_time["days 1-3"].to_numpy() * 100
     y = by_time["days 4-7"].to_numpy() * 100
     hi = max(x.max(), y.max()) * 1.05
@@ -179,12 +182,12 @@ def plot_half_split(by_time, path):
 
 
 def plot_shift(curves, switch_row, path, window=1000):
-    """Figure 7: moving CTR over the last `window` matched rows, on the log
-    where the item ranking flips halfway. The dashed line marks the switch."""
+    """Figure 8: moving CTR over the last `window` matched rows on the log
+    where the item ranking flips halfway. The dashed line marks the flip."""
     colours = [INK, BLUE, "#8a8984", ORANGE]
     fig, ax = plt.subplots(figsize=(7, 3.4))
     for (label, runs), colour in zip(curves.items(), colours):
-        # put every run on a common x axis: the log row where each match happened
+        # Runs match different rows, so put them on a shared grid of log rows.
         grid = np.linspace(0, max(r["matched_rows"].max() for r in runs), 300)
         lines = []
         for r in runs:
@@ -207,16 +210,24 @@ def plot_shift(curves, switch_row, path, window=1000):
 
 
 def plot_fairness(tab, path):
-    """Figure 8: the price of fairness. Each point is a policy: exposure
-    inequality (Gini, lower is fairer to items) against CTR."""
+    """Figure 6: CTR against the Gini of item exposure, one point per policy.
+    A lower Gini is fairer to items."""
     fig, ax = plt.subplots(figsize=(6.2, 3.8))
     x = tab["gini_exposure"].to_numpy()
     y = tab["ctr_mean"].to_numpy() * 100
     se = tab["se_binomial"].to_numpy() * 100
     ax.errorbar(x, y, yerr=1.96 * se, fmt="o", color=BLUE, ecolor=BLUE, alpha=0.9,
                 elinewidth=1, capsize=0, markersize=6)
+    # UCB with and without the weak floor almost overlap, so a point close to
+    # one already labelled gets its label below. The wider x axis leaves room
+    # for the labels.
+    placed = []
     for xi, yi, label in zip(x, y, tab["policy"]):
-        ax.annotate(label, (xi, yi), textcoords="offset points", xytext=(6, 4), fontsize=7, color=INK)
+        near = any(abs(xi - xp) < 0.06 and abs(yi - yp) < 0.05 for xp, yp in placed)
+        ax.annotate(label, (xi, yi), textcoords="offset points", xytext=(6, -12 if near else 4),
+                    fontsize=7, color=INK)
+        placed.append((xi, yi))
+    ax.set_xlim(-0.02, max(1.0, x.max() + 0.3))
     ax.set_xlabel("Gini of item exposure (0 = every item shown equally)", color=INK, fontsize=9)
     ax.set_ylabel("CTR (%)", color=INK, fontsize=9)
     ax.set_title("Clicks against fairness to items", fontsize=10, loc="left")

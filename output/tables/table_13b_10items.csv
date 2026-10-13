@@ -1,0 +1,3 @@
+policy,lift_table_13,bootstrap_mean_lift,bootstrap_sd,ci_95_low,ci_95_high,share_lift_above_0
+"TS informed prior Beta(1,300)",51.001,45.402,36.09,-6.645,133.776,0.94
+UCB tuned c=0.01,52.319,63.836,44.962,-15.368,157.26,0.93

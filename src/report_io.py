@@ -1,9 +1,7 @@
-"""Save tables and the console log so results can be found again later.
+"""Save tables and the console output.
 
-Every table goes to output/tables/ twice:
-  * name.csv  to open in Excel or pandas
-  * name.tex  to pull into the LaTeX report with \\input{...}
-Everything printed to the terminal is also copied into output/run_log.txt.
+Every table is written to output/tables/ as a csv file and as a LaTeX file.
+Everything printed to the terminal is also copied into a log file in output/.
 """
 import sys
 from pathlib import Path
@@ -38,4 +36,5 @@ class Tee:
 
 
 def start_log(filename="run_log.txt"):
+    """From now on, copy everything printed into output/<filename>."""
     sys.stdout = Tee(OUT / filename)

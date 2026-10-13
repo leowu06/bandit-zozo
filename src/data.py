@@ -18,12 +18,9 @@ USER_COLS = ["user_feature_0", "user_feature_1", "user_feature_2", "user_feature
 def load(n_items=80):
     """Return the log for the 10, 20 or 80 item file, sorted by time.
 
-    Changes made to the raw file:
-      * the unnamed row index column is dropped
-      * timestamp becomes a pandas datetime (UTC)
-      * item_id is mapped to 0..K-1 so it can index numpy arrays
-        (the original id is kept as item_id_raw)
-      * every hashed user feature becomes a small integer code 0..L-1
+    The empty index column is dropped and the timestamps are parsed. Items are
+    renumbered 0 to K-1 so they can index numpy arrays (the original id stays
+    in item_id_raw), and each hashed user feature becomes a small integer code.
     """
     path = DATA_DIR / FILES[n_items]
     if path.suffix == ".zip":

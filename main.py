@@ -1,7 +1,8 @@
 """Assignment 2, Learning from Big Data 2026.
 
-Running this file prints every table and saves every figure used in the
-report. Each one carries the ID it has in the report.
+Running this file prints every table and saves every figure of the report,
+each with its code ID ("Table 13"), which the report cites. See the bottom of
+the file for how to run only one part.
 """
 import random
 import sys
@@ -19,6 +20,7 @@ from src.policies import (ThompsonSampling, UCB, DiscountedTS, SlidingWindowUCB,
 from src import fairness as fair
 from src.report_io import save_table, start_log
 from src import stationarity as st
+from src.bootstrap import hour_block_bootstrap
 
 random.seed(1)
 np.random.seed(1)
@@ -28,23 +30,42 @@ OUT.mkdir(exist_ok=True)
 pd.set_option("display.width", 140)
 pd.set_option("display.max_columns", 20)
 
-N_RUNS = 10  # replay repetitions for stochastic policies
-N_TUNE = 5   # repetitions per setting in the tuning grid (keeps run time down)
+N_RUNS = 10  # replay runs per policy in the main comparison
+N_TUNE = 5   # runs per setting in the larger grids, to keep the run time down
+N_BOOT = 100  # hour-block bootstrap resamples for the main comparison (Table 13b)
+N_CORES = 4   # worker processes for the bootstrap
 
-# Settings tried in question (c)
+# Question (b)
+BATCH_SIZES = [1, 10, 100, 500, 1000, 5000]  # matched rows collected before each update
+UCB_C_FOR_B = 0.01  # UCB with c = 1 hardly learns (see question c), so we use c = 0.01
+
+# Question (c)
 TS_PRIOR_B = [1, 30, 100, 300, 1000]        # prior Beta(1, b), prior mean 1/(1+b)
 UCB_C = [1, 0.1, 0.03, 0.01, 0.003, 0.001]  # scale of the UCB bonus
 
-# Settings tried in question (b)
-BATCH_SIZES = [1, 10, 100, 500, 1000, 5000]  # matched rows collected before each update
-UCB_C_FOR_B = 0.01  # UCB with c = 1 does not learn (see question c), so use a working c
+# Question (d) and the placement analysis
+BORROW = 1000  # per group TS borrows up to this many shows from the pooled model
+
+# Question (e)
+FAIR_FLOORS = [0.25, 0.5]        # each item is promised this fraction of its fair share of shows
+FAIR_FEATURE = "user_feature_0"  # the user groups used for fairness to users
+MIN_MATCHED = 500                # smaller groups (matched rows per run) are too small to judge
+
+# Question (f) and the placement test
+N_PERM = 200  # placebo splits in the permutation tests
+
+# Question (g)
+GAMMAS = [0.9999, 0.999, 0.995]  # discounted TS, memory of about 10000, 1000 and 200 updates
+WINDOWS = [5000, 2000, 1000]     # sliding window UCB, last W matched rows
 
 
 def header(label):
+    """Print a table title so it is easy to find in the log."""
     print(f"\n--- {label} ---")
 
 
 def section_data(dfs):
+    """Description of the data, Tables 1 to 6 and Figures 1 and 2."""
     header("Table 1: Overview of the three data files")
     t1 = pd.DataFrame([ex.summary_row(k, d) for k, d in dfs.items()])
     print(t1.to_string(index=False))
@@ -89,6 +110,8 @@ def section_data(dfs):
 
 
 def section_sanity(dfs):
+    """Table 7: Random should replay at the CTR of the log, and the Oracle at
+    the CTR of the best item. If not, the replay code is wrong."""
     rows = []
     for name, df in dfs.items():
         K = df["item_id"].nunique()
@@ -189,7 +212,7 @@ def section_b(name, df):
 
 
 def tune_grid(df, n_runs):
-    """Run every TS prior and every UCB constant once through replay."""
+    """Replay every TS prior and every UCB bonus scale of the grid."""
     K = df["item_id"].nunique()
     ts_rows, ucb_rows = [], []
     for b in TS_PRIOR_B:
@@ -209,7 +232,7 @@ def section_c(name, df):
     K = df["item_id"].nunique()
     random_ctr = summarise(run_many(lambda rng: RandomPolicy(K, rng), df, n_runs=N_RUNS))["ctr_mean"]
 
-    # 1. Sensitivity: every setting on the full week
+    # Every setting on the full week
     ts_tab, ucb_tab = tune_grid(df, N_TUNE)
     cols = ["mean_matched", "mean_clicks", "ctr_mean", "ctr_sd_runs", "se_binomial"]
 
@@ -227,8 +250,8 @@ def section_c(name, df):
     ex.plot_tuning(ts_tab, ucb_tab, random_ctr, fig_path)
     print(f"\nFigure 5 ({name}) saved: output/{fig_path.name}")
 
-    # 2. Fair pick: choose the setting on days 1 and 2 only, then score it on
-    #    days 3 to 7. This avoids choosing the setting on the same rows we report.
+    # Choose the setting on days 1 and 2 only and score it on days 3 to 7, so
+    # the setting is not picked on the same rows it is judged on.
     days = sorted(df["timestamp"].dt.date.unique())
     tune_df = df[df["timestamp"].dt.date <= days[1]]
     test_df = df[df["timestamp"].dt.date > days[1]]
@@ -253,8 +276,8 @@ def section_c(name, df):
     print(t17.to_string(index=False))
     save_table(t17, f"table_17_{tag}", index=False)
 
-    # 3. Does the order of the log matter? Same policies on shuffled rows.
-    #    For UCB we also check the setting that did best over the whole week.
+    # Does the order of the rows matter? Same policies on the shuffled log.
+    # For UCB we also take the setting that did best over the whole week.
     week_best_c = float(ucb_tab.loc[ucb_tab["ctr_mean"].idxmax(), "c"])
     shuffled = df.sample(frac=1, random_state=1).reset_index(drop=True)
     rows = []
@@ -270,21 +293,6 @@ def section_c(name, df):
     t18 = pd.DataFrame(rows)[["policy", "row_order"] + cols].round(5)
     print(t18.to_string(index=False))
     save_table(t18, f"table_18_{tag}", index=False)
-
-
-N_PERM = 200  # placebo splits for the block permutation tests in (f)
-
-# Settings for question (d)
-BORROW = 1000   # per group TS: borrow up to this many shows of evidence from the pooled model
-
-# Settings for question (e)
-FAIR_FLOORS = [0.25, 0.5]   # every item gets at least this share of a fair (uniform) share of shows
-FAIR_FEATURE = "user_feature_0"  # user groups used for fairness to users
-MIN_MATCHED = 500               # groups with fewer matched rows per run are too small to judge
-
-# Settings for question (g) and the extension
-GAMMAS = [0.9999, 0.999, 0.995]   # discounted TS, memory about 10000, 1000, 200 updates
-WINDOWS = [5000, 2000, 1000]      # sliding window UCB, last W matched rows
 
 
 def section_f(name, df):
@@ -407,15 +415,27 @@ def section_d(name, df):
         save_table(per_group.round(5), f"table_20_{tag}_{f}")
 
 
+def group_lifts(runs, random_runs, groups):
+    """Lift over Random per user group: the policy's CTR in a group divided by
+    Random's CTR in the same group. Groups with fewer than MIN_MATCHED matched
+    rows per run under Random are left out."""
+    random_groups = ctr_per_group(random_runs, groups)
+    reliable = random_groups.index[random_groups["matched"] >= MIN_MATCHED]
+    g = ctr_per_group(runs, groups).loc[reliable]
+    return g["ctr"] / random_groups.loc[reliable, "ctr"]
+
+
 def section_e(name, df):
     """Question (e): fairness to items (who gets shown) and to users (who gets
     good recommendations), plus the fairness extension (exposure floor)."""
     tag = name.replace(" ", "")
     K = df["item_id"].nunique()
     f = FAIR_FEATURE
-    n_levels = df[f].max() + 1
-    groups = df[f].to_numpy()
     true_ctr = df.groupby("item_id")["click"].mean().to_numpy()
+
+    def per_group_ts(feature):
+        n_levels = df[feature].max() + 1
+        return lambda rng: SegmentedTS(K, rng, feature, n_levels, borrow=BORROW)
 
     policies = {
         "Random": lambda rng: RandomPolicy(K, rng),
@@ -427,25 +447,18 @@ def section_e(name, df):
     for fl in FAIR_FLOORS:
         policies[f"UCB c={UCB_C_FOR_B} + exposure floor {fl}"] = (
             lambda fl: lambda rng: ExposureFloor(UCB(K, rng, c=UCB_C_FOR_B), rng, floor=fl))(fl)
-    policies[f"Per group TS ({f}), borrowing {BORROW}"] = \
-        lambda rng: SegmentedTS(K, rng, f, n_levels, borrow=BORROW)
+    seg_label = f"Per group TS ({f}), borrowing {BORROW}"
+    policies[seg_label] = per_group_ts(f)
 
     runs = {p: run_many(make, df, n_runs=N_TUNE, ctx_cols=(f,)) for p, make in policies.items()}
 
-    # fairness to users: CTR per group, divided by Random's CTR in the same group
-    random_groups = ctr_per_group(runs["Random"], groups)
-    reliable = random_groups.index[random_groups["matched"] >= MIN_MATCHED]
-    per_group = pd.DataFrame({"rows_in_log": df[f].value_counts().sort_index(),
-                              "random_ctr": random_groups["ctr"]}).loc[reliable]
+    # Table 21: item fairness and user fairness for user_feature_0
     summary = []
     for p, r in runs.items():
         s = summarise(r)
         s["policy"] = p
         s.update(fair.item_fairness(r, true_ctr))
-        g = ctr_per_group(r, groups).loc[reliable]
-        lift = g["ctr"] / random_groups.loc[reliable, "ctr"]
-        if p != "Random":
-            per_group[f"{p} lift"] = lift
+        lift = group_lifts(r, runs["Random"], df[f].to_numpy())
         s["worst_group_lift"], s["best_group_lift"] = lift.min(), lift.max()
         s["group_lift_gap"] = lift.max() - lift.min()
         summary.append(s)
@@ -457,14 +470,46 @@ def section_e(name, df):
     t21 = pd.DataFrame(summary)[cols].round(4)
     print(t21.to_string(index=False))
     print(f"Group lifts use {f}; groups with fewer than {MIN_MATCHED} matched rows per run are left out:")
-    print(f"they are too small to judge (that is itself a fairness problem).")
+    print("they are too small to judge (that is itself a fairness problem).")
     save_table(t21, f"table_21_{tag}", index=False)
 
-    header(f"Table 22 ({name}): Lift over Random per user group ({f}), {N_TUNE} runs each")
-    print(per_group.round(3).to_string())
-    left_out = sorted(int(x) for x in set(df[f].unique()) - set(reliable))
-    print(f"Groups left out as too small: {left_out}")
-    save_table(per_group.round(3), f"table_22_{tag}")
+    # Table 22: the same user fairness measures for all four user features.
+    # Random, TS, UCB and the floors ignore the user features, so their runs
+    # above are scored against every feature. Per group TS is run again with
+    # its groups set by the feature being judged.
+    long_rows = []
+    for feat in user_cols(df):
+        groups = df[feat].to_numpy()
+        feat_runs = dict(runs)
+        del feat_runs[seg_label]
+        seg_runs = runs[seg_label] if feat == f else \
+            run_many(per_group_ts(feat), df, n_runs=N_TUNE, ctx_cols=(feat,))
+        feat_runs["Per group TS (same feature), borrowing"] = seg_runs
+
+        random_groups = ctr_per_group(runs["Random"], groups)
+        reliable = random_groups.index[random_groups["matched"] >= MIN_MATCHED]
+        per_group = pd.DataFrame({"rows_in_log": df[feat].value_counts().sort_index(),
+                                  "random_ctr": random_groups["ctr"]}).loc[reliable]
+        for p, r in feat_runs.items():
+            if p == "Random":
+                continue
+            lift = group_lifts(r, runs["Random"], groups)
+            per_group[f"{p} lift"] = lift
+            long_rows.append({"feature": feat, "policy": p, "worst_group_lift": lift.min(),
+                              "best_group_lift": lift.max(), "gap": lift.max() - lift.min(),
+                              "groups_used": len(lift)})
+
+        header(f"Table 22 ({name}, {feat}): Lift over Random per user group, {N_TUNE} runs each")
+        print(per_group.round(3).to_string())
+        left_out = sorted(int(x) for x in set(df[feat].unique()) - set(reliable))
+        print(f"Groups left out as too small: {left_out}")
+        save_table(per_group.round(3), f"table_22_{tag}_{feat}")
+
+    header(f"Table 22 ({name}): Worst and best group lift over Random for every user feature, {N_TUNE} runs each")
+    t22 = pd.DataFrame(long_rows).round(3)
+    print(t22.to_string(index=False))
+    print(f"Groups with fewer than {MIN_MATCHED} matched rows per run under Random are left out.")
+    save_table(t22, f"table_22_{tag}", index=False)
 
     fig_path = OUT / f"figure_6_fairness_{tag}.png"
     ex.plot_fairness(t21, fig_path)
@@ -478,7 +523,7 @@ def section_placement(name, df):
     K = df["item_id"].nunique()
     n_levels = df["position"].max() + 1
 
-    # 1. Item CTR per position: is the ranking the same in every slot?
+    # Is the item ranking the same in every slot?
     by_pos = df.groupby(["item_id", "position"])["click"].mean().unstack()
     top = pd.DataFrame({f"position {p}": by_pos[p].sort_values(ascending=False).index[:5].to_numpy()
                         for p in by_pos.columns}, index=[f"rank {i}" for i in range(1, 6)])
@@ -496,7 +541,7 @@ def section_placement(name, df):
     print("Placebo: within each hour the position labels are swapped between slots at random.")
     save_table(t11, f"table_11_{tag}")
 
-    # 2. One model for all slots vs one model per slot
+    # One model for all slots against one model per slot
     policies = {
         "TS, one model for all positions": lambda rng: ThompsonSampling(K, rng),
         "TS per position, from zero": lambda rng: SegmentedTS(K, rng, "position", n_levels, borrow=0),
@@ -523,8 +568,9 @@ def two_proportion_p(clicks_a, n_a, clicks_b, n_b):
 
 def section_final(name, df):
     """Question (a), final comparison: the default and the tuned versions side by
-    side, with regret against the Oracle and a test against Random.
-    The tuned settings come from question (c), so they are chosen in hindsight."""
+    side, with regret against the Oracle and a z test against Random (Table 13),
+    then hour-block bootstrap intervals for the lifts (Table 13b). The tuned
+    settings come from question (c), so they are chosen in hindsight."""
     tag = name.replace(" ", "")
     K = df["item_id"].nunique()
     best = df.groupby("item_id")["click"].mean().idxmax()
@@ -565,15 +611,37 @@ def section_final(name, df):
     print("Tuned settings come from question (c) and were chosen in hindsight on the same log.")
     save_table(t13, f"table_13_{tag}", index=False)
 
+    # Hour-block bootstrap: how much would the lifts move with another week?
+    feature = FAIR_FEATURE if user_cols(df) else None
+    boot = pd.DataFrame(hour_block_bootstrap(
+        df, N_BOOT, N_CORES, K=K, feature=feature,
+        n_levels=df[feature].max() + 1 if feature else 0,
+        ts_prior_b=300, ucb_c=UCB_C_FOR_B, borrow=BORROW))
+    lifts = 100 * (boot.div(boot.iloc[:, 0], axis=0) - 1)
+    rows = []
+    for p in lifts.columns[1:]:
+        x = lifts[p]
+        rows.append({"policy": p,
+                     "lift_table_13": t.set_index("policy").loc[p, "lift_vs_random_percent"],
+                     "bootstrap_mean_lift": x.mean(), "bootstrap_sd": x.std(ddof=1),
+                     "ci_95_low": np.percentile(x, 2.5), "ci_95_high": np.percentile(x, 97.5),
+                     "share_lift_above_0": (x > 0).mean()})
+    header(f"Table 13b ({name}): Lift over Random (%) with hour-block bootstrap 95% intervals, {N_BOOT} resamples")
+    t13b = pd.DataFrame(rows).round(3)
+    print(t13b.to_string(index=False))
+    print("Each resample draws the 168 hours with replacement and replays every policy once (seed 1 + b).")
+    print("The interval covers both the data (dependence within hours kept) and the policy's own randomness.")
+    save_table(t13b, f"table_13b_{tag}", index=False)
+
 
 def make_shifted_log(df):
-    """Same log, but halfway through the week the item ranking is turned upside
-    down: in the second half, the rows of the worst item are relabelled as the
-    best item, the second worst as the second best, and so on. The logging was
-    uniform, so replay stays valid. This creates a sudden change in which item
-    is best, the situation where forgetting old data should pay off."""
+    """The same log with the item ranking turned upside down halfway through
+    the week. In the second half the worst item is relabelled as the best, the
+    second worst as the second best, and so on. Logging stays uniform, so
+    replay is still valid. This is the kind of change where forgetting old
+    data should pay off."""
     ranked = df.groupby("item_id")["click"].mean().sort_values(ascending=False).index.to_numpy()
-    flip = dict(zip(ranked, ranked[::-1]))     # best <-> worst, 2nd best <-> 2nd worst, ...
+    flip = dict(zip(ranked, ranked[::-1]))  # best and worst swap, and so on
     switch_time = df["timestamp"].min() + (df["timestamp"].max() - df["timestamp"].min()) / 2
     shifted = df.copy()
     second_half = shifted["timestamp"] >= switch_time
@@ -603,9 +671,8 @@ def section_g(name, df):
             runs = run_many(make, data, n_runs=N_TUNE)
             s = summarise(runs)
             s["policy"] = pname
-            # CTR in the first and second half of the log. On the flipped log the
-            # second half starts at the switch, so comparing the two tables shows
-            # how much the flip cost each policy.
+            # CTR before and after the middle of the week. Comparing the second
+            # half on both logs shows what the flip cost each policy.
             before = [np.mean(np.array(r["matched_clicks"])[r["matched_rows"] < switch_row]) for r in runs]
             after = [np.mean(np.array(r["matched_clicks"])[r["matched_rows"] >= switch_row]) for r in runs]
             s["ctr_first_half"], s["ctr_second_half"] = np.mean(before), np.mean(after)
@@ -631,19 +698,18 @@ def section_g(name, df):
 
 
 def clean_output():
-    """Remove tables and figures of earlier runs, so the output folder holds
-    only what this full run produces."""
+    """Delete the tables and figures of earlier runs before a full run."""
     for f in list((OUT / "tables").glob("*")) + list(OUT.glob("figure_*.png")):
         f.unlink()
 
 
 if __name__ == "__main__":
-    # Full run (for the report):   python main.py
-    # Quick test on one file:       python main.py 10
-    # One part only, quick:         python main.py 10 b
-    # Parts, in report order: a (comparison), p (placement), h (head to head),
-    # b (batch size), c (tuning), d (user groups), e (fairness),
-    # f (stationarity), g (forgetting policies and extension)
+    # python main.py         full run for the report (about 2.5 hours)
+    # python main.py 10      all parts on the 10 item file only
+    # python main.py 10 b    one part on one file
+    # The parts, in report order, are a (comparison), p (placement),
+    # h (final comparison), b (batch size), c (tuning), d (user groups),
+    # e (fairness), f (stationarity) and g (forgetting policies).
     order = ["a", "p", "h", "b", "c", "d", "e", "f", "g"]
     args = sys.argv[1:]
     files = [a for a in args if a.isdigit()]

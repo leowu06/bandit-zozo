@@ -1,0 +1,21 @@
+feature,policy,worst_group_lift,best_group_lift,gap,groups_used
+user_feature_0,TS,1.098,1.152,0.054,3
+user_feature_0,UCB c=0.01,0.917,1.973,1.056,3
+user_feature_0,UCB c=0.01 + exposure floor 0.25,0.805,2.013,1.207,3
+user_feature_0,UCB c=0.01 + exposure floor 0.5,1.076,1.33,0.253,3
+user_feature_0,"Per group TS (same feature), borrowing",1.284,2.001,0.717,3
+user_feature_1,TS,1.081,1.826,0.745,4
+user_feature_1,UCB c=0.01,1.487,3.795,2.308,4
+user_feature_1,UCB c=0.01 + exposure floor 0.25,1.479,3.443,1.964,4
+user_feature_1,UCB c=0.01 + exposure floor 0.5,1.224,2.512,1.288,4
+user_feature_1,"Per group TS (same feature), borrowing",0.91,1.205,0.295,4
+user_feature_2,TS,1.04,1.726,0.686,7
+user_feature_2,UCB c=0.01,1.244,4.001,2.757,7
+user_feature_2,UCB c=0.01 + exposure floor 0.25,1.125,4.132,3.007,7
+user_feature_2,UCB c=0.01 + exposure floor 0.5,0.898,1.766,0.869,7
+user_feature_2,"Per group TS (same feature), borrowing",0.793,1.338,0.545,7
+user_feature_3,TS,1.098,1.322,0.224,6
+user_feature_3,UCB c=0.01,1.177,2.877,1.699,6
+user_feature_3,UCB c=0.01 + exposure floor 0.25,1.084,2.491,1.407,6
+user_feature_3,UCB c=0.01 + exposure floor 0.5,0.735,2.583,1.849,6
+user_feature_3,"Per group TS (same feature), borrowing",0.611,1.829,1.218,6

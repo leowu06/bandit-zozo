@@ -1,0 +1,4 @@
+group,rows_in_log,random_ctr,TS lift,UCB c=0.01 lift,UCB c=0.01 + exposure floor 0.25 lift,UCB c=0.01 + exposure floor 0.5 lift,"Per group TS (same feature), borrowing lift"
+1,479757,0.004,1.098,1.487,1.479,1.33,1.284
+2,719581,0.003,1.152,1.973,2.013,1.314,1.452
+3,150691,0.003,1.14,0.917,0.805,1.076,2.001

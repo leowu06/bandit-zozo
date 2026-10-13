@@ -125,13 +125,10 @@ def run_many(make_policy, df, n_runs=10, seed=1, **kw):
 def summarise(runs):
     """Summary of a set of replay runs.
 
-    ctr_mean      average CTR over the runs
-    ctr_sd_runs   how much the CTR moves between runs (policy randomness only,
-                  the data stays the same)
-    ctr_min_run, ctr_max_run   lowest and highest run
-    se_binomial   standard error from the number of matched rows,
-                  sqrt(p(1-p)/n). This is the sampling noise of one run and is
-                  the better guide to whether two policies really differ.
+    ctr_sd_runs is how much the CTR moves between runs. Only the policy's own
+    randomness changes between runs, the data stays the same. se_binomial is
+    sqrt(p(1-p)/n) with n the matched rows of one run. It measures the sampling
+    noise and is the better guide to whether two policies differ.
     """
     ctrs = np.array([r["ctr"] for r in runs])
     n = np.mean([r["n_matched"] for r in runs])

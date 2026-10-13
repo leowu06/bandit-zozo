@@ -1,0 +1,4 @@
+policy,lift_table_13,bootstrap_mean_lift,bootstrap_sd,ci_95_low,ci_95_high,share_lift_above_0
+"TS informed prior Beta(1,300)",25.048,17.259,25.969,-23.756,66.157,0.73
+UCB tuned c=0.01,51.996,52.77,50.031,-16.607,149.692,0.83
+"Per group TS (user_feature_0), borrowing",34.173,26.056,28.873,-19.427,82.411,0.83

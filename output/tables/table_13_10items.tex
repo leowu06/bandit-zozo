@@ -1,0 +1,12 @@
+\begin{tabular}{lrrrrrrr}
+\toprule
+policy & mean\_matched & mean\_clicks & ctr\_mean & se\_binomial & lift\_vs\_random\_percent & regret\_per\_10000\_rows & p\_value\_vs\_random \\
+\midrule
+Random (logging policy) & 17252.00000 & 45.10000 & 0.00261 & 0.00039 & 0.00000 & 26.38280 & 1.00000 \\
+TS default Beta(1,1) & 17311.80000 & 65.80000 & 0.00380 & 0.00047 & 45.37950 & 14.52033 & 0.05111 \\
+TS informed prior Beta(1,300) & 17391.90000 & 68.70000 & 0.00395 & 0.00048 & 51.00115 & 13.05080 & 0.02980 \\
+UCB default c=1 & 4933.00000 & 16.20000 & 0.00330 & 0.00082 & 26.32256 & 19.50193 & 0.42934 \\
+UCB tuned c=0.01 & 12918.30000 & 52.90000 & 0.00398 & 0.00055 & 52.31859 & 12.70641 & 0.02531 \\
+Oracle (best item in hindsight) & 17516.00000 & 92.00000 & 0.00525 & 0.00055 & 100.92654 & 0.00000 & 0.00009 \\
+\bottomrule
+\end{tabular}

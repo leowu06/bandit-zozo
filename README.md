@@ -10,7 +10,7 @@ I can't show anything to real users, so I evaluate offline with the replay metho
 
 ## Data
 
-The data is a sample of the Open Bandit Dataset (Saito et al., 2021). It is not in the repo because the main file is about 270 MB. To run the code, put these files in `data/`:
+The data is a sample of the Open Bandit Dataset (Saito et al., 2021). The files are not included in this folder because of their size. To run the code, put them in `data/`:
 
 | File | Rows | Items | CTR |
 |---|---|---|---|
@@ -25,11 +25,11 @@ Columns: `timestamp`, `item_id`, `position` (1 = left, 2 = centre, 3 = right), `
 | Question | What we do | Tables | Figures |
 |---|---|---|---|
 | Data | descriptives, propensity check, CTR by item, position, user group and day | 1 to 6 | 1, 2 |
-| (a) | TS and UCB against Random and the hindsight Oracle; placement by position; final comparison with regret and a test against Random | 7 to 13 | 3 |
+| (a) | TS and UCB against Random and the hindsight Oracle; placement by position; final comparison with regret and hour-block bootstrap intervals | 7 to 13, 13b | 3 |
 | (b) | learning in batches of 1 to 5,000 matched rows | 14 | 4 |
 | (c) | TS prior and UCB bonus scale; settings chosen on days 1 and 2 and scored on days 3 to 7; replay in time order vs shuffled | 15 to 18 | 5 |
 | (d) | one pooled model vs one model per user group, with and without borrowing from the pooled model | 19, 20 | |
-| (e) | fairness to items (exposure, Gini) and to users (lift per group); UCB with a minimum exposure guarantee | 21, 22 | 6 |
+| (e) | fairness to items (exposure, Gini) and to users (lift per group, all four user features); UCB with a minimum exposure guarantee | 21, 22 | 6 |
 | (f) | daily CTR, item ranking across the week, likelihood ratio test, all checked against an hour block permutation placebo | 23 to 25 | 7 |
 | (g) | discounted TS and sliding window UCB on the real log and on a log where the ranking flips halfway | 26, 27 | 8 |
 
@@ -47,17 +47,16 @@ src/fairness.py      exposure measures for (e)
 src/report_io.py     saves every table as csv and tex, and the console log
 main.py              runs everything in report order
 peek.py              small tool to look at the data and the replay step by step
-data/                input files (not in the repo)
-output/              tables, figures and run logs written by main.py
-report/              LaTeX report
+data/                input files (not included)
+output/              tables, figures and the log of the full run, as written by main.py
 ```
 
 ## Running it
 
 ```
 pip install -r requirements.txt
-python main.py           # full run, about 3 hours, writes output/run_log.txt
-python main.py 10 b      # one part on one file, for quick checks
+python main.py           # full run, about 2.5 hours, writes output/run_log.txt
+python main.py 10 b      # one part on one file, for quick checks (log in output/run_log_quick.txt)
 ```
 
 On a Mac, `caffeinate -i python main.py` keeps the computer awake during the full run. The full run first clears old tables and figures from `output/`.
