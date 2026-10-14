@@ -418,7 +418,7 @@ events rise from 12{,}930 at $B=1$ to about 17{,}000 at $B\geq 100$
 
 We vary the prior of TS and the bonus scale $c$ of UCB (Figure~\ref{fig:tuning}).
 
-\begin{figure}[H]
+\begin{figure}[tb]
   \centering
   \codefigure{figure_5_tuning_80items.png}{0.9}
   \caption{CTR for TS with prior $\text{Beta}(1,b)$ (left) and UCB with bonus
@@ -564,7 +564,7 @@ with $e_{(1)}\leq\dots\leq e_{(K)}$, so $G=0$ means equal exposure. We also
 count the items that receive less than half of the fair share $1/K$, and
 report the rank correlation between exposure and item CTR, which shows
 whether exposure follows merit. For fairness to users we compute, per level
-of \texttt{user\_feature\_0}, the CTR divided by Random's CTR in the same
+of a user feature, the CTR divided by Random's CTR in the same
 group (the lift), and report the worst group's lift and the gap between the
 best and the worst group. The lift removes differences in how often each
 group clicks anyway (under random serving the four groups click at 0.18\%
@@ -640,7 +640,7 @@ Table~\ref{tab:e4} repeats the user measures for every feature, with the
 same runs for the policies that ignore the features and a per group TS
 that splits on the feature being judged.
 
-\begin{table}[H]
+\begin{table}[tb]
   \centering
   \caption{Worst group lift over Random and gap between the best and the worst
     group, for every user feature, 80 item file, 5 runs each (code Table~22).
@@ -757,7 +757,7 @@ The data is therefore non-stationary in level but stationary in ranking. The
 level shift does not change which item is best, so it does not hurt a bandit
 that only needs the ranking.
 
-\section{Question (g) and extension: policies for a changing environment}
+\section{Question (g): policies for a changing environment}
 \label{sec:g}
 
 If the ranking did change, the policies would have to stop weighting old and
@@ -832,7 +832,7 @@ little to unlearn. Discounted TS with $\gamma=0.9999$ is the only version
 with a noticeable gain there, and the longest window does not help UCB at
 all (cost 0.106 against 0.103).
 
-\begin{figure}[H]
+\begin{figure}[tb]
   \centering
   \codefigure{figure_8_shift_10items.png}{0.75}
   \caption{Moving CTR over the last 1{,}000 matched events on the 10 item log

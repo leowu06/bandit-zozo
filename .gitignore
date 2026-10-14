@@ -24,3 +24,7 @@ report/*.blg
 # OS and editor
 .DS_Store
 .vscode/
+
+# Notes for Claude Code, not part of the project
+CLAUDE.md
+writing_skills/

@@ -218,13 +218,15 @@ def plot_fairness(tab, path):
     se = tab["se_binomial"].to_numpy() * 100
     ax.errorbar(x, y, yerr=1.96 * se, fmt="o", color=BLUE, ecolor=BLUE, alpha=0.9,
                 elinewidth=1, capsize=0, markersize=6)
-    # UCB with and without the weak floor almost overlap, so a point close to
-    # one already labelled gets its label below. The wider x axis leaves room
-    # for the labels.
+    # Short labels keep the plot readable. UCB with and without the weak floor
+    # almost overlap, so a point close to one already labelled gets its label
+    # above and to the left. The wider x axis leaves room for the labels.
     placed = []
     for xi, yi, label in zip(x, y, tab["policy"]):
+        label = label.replace(" c=0.01 + exposure floor", " + floor").split(" (")[0]
         near = any(abs(xi - xp) < 0.06 and abs(yi - yp) < 0.05 for xp, yp in placed)
-        ax.annotate(label, (xi, yi), textcoords="offset points", xytext=(6, -12 if near else 4),
+        ax.annotate(label, (xi, yi), textcoords="offset points",
+                    xytext=(-6, 6) if near else (6, 4), ha="right" if near else "left",
                     fontsize=7, color=INK)
         placed.append((xi, yi))
     ax.set_xlim(-0.02, max(1.0, x.max() + 0.3))
