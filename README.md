@@ -44,6 +44,7 @@ src/policies.py      TS, UCB, discounted TS, sliding window UCB, per group TS, e
 src/explore.py       descriptive tables and all figures
 src/stationarity.py  tests for (f) and the placement test
 src/fairness.py      exposure measures for (e)
+src/bootstrap.py     hour-block bootstrap for the lifts in Table 13b
 src/report_io.py     saves every table as csv and tex, and the console log
 main.py              runs everything in report order
 peek.py              small tool to look at the data and the replay step by step
@@ -61,7 +62,7 @@ python main.py 10 b      # one part on one file, for quick checks (log in output
 
 On a Mac, `caffeinate -i python main.py` keeps the computer awake during the full run. The full run first clears old tables and figures from `output/`.
 
-The seed is fixed at 1 and every replay run uses its own seed, so every run gives the same numbers. Each table and figure prints with an ID (Table 8, Figure 3 and so on) that matches the report.
+The seed is fixed at 1 and every replay run uses its own seed, so every run gives the same numbers. The bootstrap for Table 13b runs on 4 worker processes, and each resample has its own fixed seed, so its results do not depend on the number of cores. Each table and figure prints with an ID (Table 8, Figure 3 and so on), and the report cites these IDs as "code Table 8".
 
 ## References
 
