@@ -48,39 +48,38 @@
 \section{Introduction}
 
 ZOZOTOWN, a large Japanese fashion website, shows every visitor a row of three
-recommended items. Which items should go into that row, and in which slot, to
-get the most clicks? With dozens of candidate items and click rates well below
-one percent, the site cannot afford to test every item at length: every
-impression spent on a weak item is a click lost. This is a multi-armed bandit
-problem. Each item is an arm, a click is the reward, and the policy has to
-balance trying uncertain items (exploration) against showing the items that
-look best so far (exploitation).
+recommended items, and it wants to know which items to put in that row, and
+in which slot, to get the most clicks. With dozens of candidate items and
+click rates well below one percent, the site cannot afford to test every item
+at length, because every impression spent on a weak item is a click lost.
+This makes it a multi-armed bandit problem: each item is an arm and a click
+is the reward, so the policy has to balance trying uncertain items
+(exploration) against showing the items that look best so far
+(exploitation).
 
-We use a week of logged data from a randomised experiment that ZOZO ran in
-November 2019 \citep{saito2021} and ask which items to show, in which slot,
-and which bandit policy finds them fastest. The two algorithms are Thompson
-Sampling (TS) and the Upper Confidence Bound algorithm (UCB), both evaluated
-offline with the replay method of \citet{li2011}. We extend them in four
-ways: TS with an informed prior and UCB with a bonus scaled to the click
-rates (question c), one model per user group that borrows from the pooled
-model (d), a minimum exposure guarantee for items (e), and discounted TS and
-sliding window UCB for non-stationary data (g).
+To study it we use a week of logged data from a randomised experiment that
+ZOZO ran in November 2019 \citep{saito2021}. We compare Thompson Sampling
+(TS) and the Upper Confidence Bound algorithm (UCB), both evaluated offline
+with the replay method of \citet{li2011}, and extend them in four ways: TS
+with an informed prior and UCB with a bonus scaled to the click rates
+(question c), one model per user group that borrows from the pooled model
+(d), a minimum exposure guarantee for items (e), and discounted TS and
+sliding window UCB for data that change over time (g).
 
-The main findings are these. On the 80 item file, UCB with a bonus scaled to
-the size of the click rates raises the CTR from 0.330\% under random serving
-to 0.502\%, and TS with a prior near the real click rate reaches 0.413\%. With
-the textbook settings both stay close to random. The gains point the same way
-in most resamples of the week, but one week of data is too little to call
-any of them significant once the dependence between rows is taken into
-account. The slot does not change which items are best. Learning in large
-batches hurts UCB more than TS. Personalising by user group pays off only for
-the feature with a few large groups, and only when the group models borrow
-from the pooled model. UCB earns its clicks by showing a handful of items and
-starving the rest. A floor that guarantees every item half its fair share of
-exposure ends this at a cost of about 0.13 percentage points of CTR. Finally,
-the daily click level shifts during the week but the item ranking does not.
-Forgetting old data therefore does not help on this log, although it does
-when we make the ranking change.
+Both algorithms only work once their settings match how rare clicks are.
+With the textbook settings they stay close to random serving, whereas UCB
+with a small bonus raises the CTR on the 80 item file from 0.330\% to
+0.502\%. That gain points the same way in most resamples of the week, but one
+week of data is too short to call it significant once the dependence between
+rows is taken into account. The slot does not change which items are best,
+and learning in large batches hurts UCB more than TS. Separate models per
+user group help only for the feature with a few large groups, and only when
+they borrow from the pooled model. The clicks that UCB earns come at a price,
+since it shows a handful of items and starves the rest; guaranteeing every
+item half its fair share of exposure ends this for about 0.13 percentage
+points of CTR. Finally, the daily click level shifts during the week while
+the item ranking stays the same, so forgetting old data does not help on
+this log, although it does once we make the ranking change.
 
 \section{Data}
 
@@ -185,19 +184,17 @@ time order but 17{,}227 when the rows are shuffled (code Table~18). We report
 matched events next to every CTR and come back to this in
 Section~\ref{sec:c}.
 
-Each stochastic policy is replayed 10 times in the main comparison (seeds 1
-to 10, code Table~13) and 5 times in questions (b) to (g) (seeds 1 to 5); run
-$i$ uses random seed $1+i$. The same policy can therefore show different
-levels in different sections. UCB with $c=0.01$ scores 0.502\% over 10 runs
-and 0.569\% over the first 5, but its CTR moves by about 0.11 percentage
-points from run to run (code Table~16), so the two agree within noise. Tables
-report the mean CTR over runs. The code tables also give the spread across
-runs and the binomial standard error $\sqrt{\hat p(1-\hat p)/n}$ of one run
-with $n$ matched events, and we quote these in the text where a comparison
-depends on them. The benchmark at the top is the \emph{Oracle}, which always
-shows the item with the highest CTR over the whole week. No real policy has
-that information, so the Oracle is an upper bound for any policy that shows
-the same item to everyone.
+Each stochastic policy is replayed 10 times in the main comparison and 5
+times in questions (b) to (g), with seed $1+i$ for run $i$. The same policy
+can therefore score slightly differently between sections, as UCB with
+$c=0.01$ does (0.502\% over 10 runs, 0.569\% over the first 5), but its CTR
+moves by about 0.11 percentage points from run to run (code Table~16), so
+gaps of this size are noise. Tables report the mean CTR over runs, and the
+code tables add the spread across runs and the binomial standard error
+$\sqrt{\hat p(1-\hat p)/n}$ of one run with $n$ matched events. The
+\emph{Oracle} at the top of the tables always shows the item with the highest
+CTR over the whole week; since no real policy has that information, it is an
+upper bound for any policy that shows everyone the same item.
 
 \subsection{Thompson Sampling}
 
@@ -272,31 +269,35 @@ found in question (c): a prior $\text{Beta}(1,300)$, whose mean of 0.33\% is
 close to the overall CTR, and $c=0.01$. We use $\text{Beta}(1,300)$ rather
 than the best value in the grid, $\text{Beta}(1,1000)$, because a prior
 centred on the site's average CTR can be set without looking at the results.
+Per group TS, with one model per level of \texttt{user\_feature\_0}, is
+explained in Section~\ref{sec:d}.
 
 \begin{table}[H]
   \centering
-  \caption{Replay CTR of the policies, 10 runs each (code Table~13). Lift is
+  \caption{Replay CTR of the policies, 10 runs each (code Table~13). CTR,
+    lift, CI and $>0$ are in percent. Lift is
     relative to Random, regret is the number of clicks lost against the
-    Oracle per 10{,}000 matched events. The 95\% interval (CI) for the lift comes
-    from 100 hour-block bootstrap resamples (code Table~13b), computed for the
-    tuned policies only. Tuned settings come from question (c) and were
-    chosen on the same log.}
+    Oracle per 10{,}000 matched events. The 95\% interval (CI) for the lift
+    and the share of resamples with a positive lift ($>0$) come from 100
+    hour-block bootstrap resamples (code Table~13b), computed for the tuned
+    policies only. Tuned settings come from question (c) and were chosen on
+    the same log.}
   \label{tab:a}
   \footnotesize
-  \setlength{\tabcolsep}{3.3pt}
-  \begin{tabular}{lrrrrr@{\hspace{14pt}}rrr}
+  \setlength{\tabcolsep}{3pt}
+  \begin{tabular}{lrrrrrr@{\hspace{10pt}}rrrr}
     \toprule
-    & \multicolumn{5}{c}{80 items} & \multicolumn{3}{c}{10 items} \\
-    \cmidrule(lr){2-6}\cmidrule(lr){7-9}
-    Policy & Matched & CTR (\%) & Lift (\%) & Regret & 95\% CI & CTR (\%) & Lift (\%) & 95\% CI \\
+    & \multicolumn{6}{c}{80 items} & \multicolumn{4}{c}{10 items} \\
+    \cmidrule(lr){2-7}\cmidrule(lr){8-11}
+    Policy & Matched & CTR & Lift & Regret & 95\% CI & $>0$ & CTR & Lift & 95\% CI & $>0$ \\
     \midrule
-    Random (logging policy)        & 17{,}192 & 0.330 &   0.0 & 45.4 &       & 0.261 &   0.0 &       \\
-    TS, $\text{Beta}(1,1)$         & 17{,}109 & 0.377 &  14.1 & 40.7 &       & 0.380 &  45.4 &       \\
-    TS, $\text{Beta}(1,300)$       & 17{,}077 & 0.413 &  25.0 & 37.1 & $[-24, 66]$  & 0.395 &  51.0 & $[-7, 134]$  \\
-    UCB, $c=1$                     & 10{,}757 & 0.408 &  23.4 & 37.6 &       & 0.330 &  26.3 &       \\
-    UCB, $c=0.01$                  & 11{,}169 & 0.502 &  52.0 & 28.2 & $[-17, 150]$ & 0.398 &  52.3 & $[-15, 157]$ \\
-    Per group TS (Section~\ref{sec:d}) & 17{,}073 & 0.443 & 34.2 & 34.1 & $[-19, 82]$  &       &       &       \\
-    Oracle (best item)             & 16{,}325 & 0.784 & 137.3 &  0.0 &       & 0.525 & 100.9 &       \\
+    Random (logging)       & 17{,}192 & 0.330 &   0.0 & 45.4 &              &    & 0.261 &   0.0 &              &    \\
+    TS, $\text{Beta}(1,1)$ & 17{,}109 & 0.377 &  14.1 & 40.7 &              &    & 0.380 &  45.4 &              &    \\
+    TS, $\text{Beta}(1,300)$ & 17{,}077 & 0.413 & 25.0 & 37.1 & $[-24, 66]$  & 73 & 0.395 &  51.0 & $[-7, 134]$  & 94 \\
+    UCB, $c=1$             & 10{,}757 & 0.408 &  23.4 & 37.6 &              &    & 0.330 &  26.3 &              &    \\
+    UCB, $c=0.01$          & 11{,}169 & 0.502 &  52.0 & 28.2 & $[-17, 150]$ & 83 & 0.398 &  52.3 & $[-15, 157]$ & 93 \\
+    Per group TS           & 17{,}073 & 0.443 &  34.2 & 34.1 & $[-19, 82]$  & 83 &       &       &              &    \\
+    Oracle (best item)     & 16{,}325 & 0.784 & 137.3 &  0.0 &              &    & 0.525 & 100.9 &              &    \\
     \bottomrule
   \end{tabular}
 \end{table}
@@ -307,16 +308,11 @@ checks confirm that the evaluator works (code Table~7).
 
 The two files behave differently. With 10 items every learning policy except
 UCB with $c=1$ beats Random by 45 to 52\%, and TS shows the best item in
-31.5\% of its matched events against 10\% under Random (code Table~9). The
-bootstrap intervals include zero, but the lift of TS with
-$\text{Beta}(1,300)$ is positive in 94 of 100 resamples and that of UCB with
-$c=0.01$ in 93 (code Table~13b). With 79 items the same 17{,}000 matched
-events are spread over eight times as many arms, about 217 per item and on
-average less than one click each. Default TS then barely
-moves away from uniform: it shows the best item 1.7\% of the time against
-1.27\% for Random, and its 14\% lift, 0.047 percentage points, is smaller
-than one standard error of the difference (about 0.064). The flat
-prior is the reason. After $n$ non-clicks its posterior mean is $1/(n+2)$, so
+31.5\% of its matched events against 10\% under Random (code Table~9). With
+79 items the same 17{,}000 matched events are spread over eight times as many
+arms, about 217 per item and on average less than one click each. Default TS
+then barely moves away from uniform serving: its gain of 0.047 points is
+below one standard error of the difference (0.064). The flat prior is the reason. After $n$ non-clicks its posterior mean is $1/(n+2)$, so
 after 217 shows an item without clicks still looks like 0.46\%, above the
 true CTR of most items, and TS keeps exploring until the data runs out.
 Figure~\ref{fig:learning} shows the result: the TS curve separates from Random
@@ -331,14 +327,13 @@ early and then stays flat, far below the Oracle.
   \label{fig:learning}
 \end{figure}
 
-Tuning changes the ranking. The informed prior lifts TS to 0.413\%, and UCB
-with $c=0.01$ reaches 0.502\%, a 52\% lift and the largest on the 80 item
-file. A textbook $z$-test would call it significant, but the hour-block
-bootstrap does not: its 95\% interval runs from $-17\%$ to $150\%$, and the
-lift is positive in 83 of 100 resamples (code Table~13b). The informed prior
-(73 of 100) and per group TS (83 of 100) look the same. The direction is
-consistent, but with one week of streaky data no lift on this file is
-significant at the 5\% level.
+Tuning changes the ranking. With the informed prior TS reaches 0.413\%, and
+UCB with $c=0.01$ reaches 0.502\%, the largest lift on the 80 item file at
+52\%. A textbook $z$-test would call this significant, but the hour-block
+bootstrap interval includes zero, and the same holds for every tuned policy
+on both files (Table~\ref{tab:a}). The lifts are positive in most resamples,
+so the direction is clear, but one week of data in which rows depend on
+their neighbours cannot pin down their size.
 
 With $c=1$ the bonus in~\eqref{eq:ucb} is about 0.2 after a few thousand
 events, around 70 times the size of the CTRs it is added to. UCB then mostly
@@ -352,22 +347,19 @@ data has too few clicks to find the best of 79 items.
 \subsection{Where to place the items}
 
 The brief also asks where to place the items. If the best item depended on
-the slot, a policy should learn a separate ranking for the left, centre and
-right position. The five best items per position overlap heavily (items 33,
-34, 38, 57 and 59 appear in several slots, code Table~10). A likelihood ratio
-test of the logistic model with item and position effects against a model
-with a separate rate for every item and position rejects at the textbook
-level ($\text{LR}=332.0$, 156 degrees of freedom, $p<10^{-14}$). That test,
-however, assumes independent rows. When we swap the three position labels
-between slots at random within every hour, which keeps the streaks intact but
-removes any real link between slot and item, the placebo statistics average
-323.3 and the permutation $p$-value is 0.38 (code Table~11). We find no
-evidence that the best item depends on the slot. In line with this, TS with
-one model per position does not beat one model for all positions: per position
-from zero gives 0.399\%, per position with borrowing (Section~\ref{sec:d})
-0.395\%, against 0.387\% for one model, all within one standard error of
-about 0.05 (code Table~12). The practical answer is to show the
-best items and not to spend data on learning a ranking per slot.
+the slot, a policy would have to learn a separate ranking for the left,
+centre and right position, but the data give no sign of that. The five best
+items in each position largely overlap (code Table~10). A likelihood ratio
+test of an item by position interaction does reject at the textbook level,
+but it assumes independent rows. When we swap the three position labels
+between slots at random within every hour, which keeps the streaks intact
+but removes any real link between slot and item, the placebo statistics are
+just as large (permutation $p=0.38$, code Table~11). In line with this, one
+TS model per position does no better than a single model for all slots
+(code Table~12).
+
+The practical answer is therefore to show the best items, in any slot, and
+not to spend data on learning a ranking per slot.
 
 \section{Question (b): batch size}
 \label{sec:b}
@@ -459,19 +451,15 @@ matched clicks, too few to separate the settings, and the defaults are chosen. I
 practice $c$ and the prior have to be set before launch, ideally from earlier
 data on the site's typical CTR.
 
-Finally, replaying the log in shuffled order removes the streaks. UCB with
-$c=1$ then matches 17{,}112 events instead of 10{,}639 on the 80 item file
-(code Table~18). The CTRs of the learning policies are lower in shuffled
-order in all six policy and file combinations, in five of them by 0.05 to
-0.11 percentage points (for example 0.569\% against 0.501\% for UCB with
-$c=0.01$); the sixth, UCB with $c=1$ on 10 items, hardly changes. Random does
-not show this gap: it scores 0.341\% in time order and 0.355\% shuffled on the
-80 item file, and 0.274\% against 0.279\% on the 10 item file. Each gap is
-only about one standard error. Still, it appears only for policies that adapt
-and always in the same direction, which suggests that replay on this log
-slightly favours policies that stay with one item, perhaps because clicks
-cluster within streaks. The ranking of the policies does not change, but
-absolute CTRs should be read with this caveat.
+Finally, replaying the log in shuffled order removes the streaks, so UCB
+matches far more events (code Table~18). The learning policies then score
+lower in all six policy and file combinations, mostly by 0.05 to 0.11
+percentage points, while Random does not move. Each gap is only about one
+standard error, but because it appears only for policies that adapt and
+always in the same direction, it suggests that replay on this log slightly
+favours policies that stay with one item, perhaps because clicks cluster
+within streaks. The ranking of the policies does not change, but absolute
+CTRs should be read with this caveat.
 
 \section{Question (d): one model or one per user group}
 \label{sec:d}
@@ -620,27 +608,22 @@ of 0.16, because it serves each large group with its own favourites.
 The floor does what it promises. The least shown item gets 0.32\% of the
 exposure with $\phi=0.25$ and 0.63\% with $\phi=0.5$, exactly a quarter and a
 half of the fair share of 1.27\% (code Table~21). The weak floor changes
-little: the CTR stays at 0.57\%, the Gini falls only from 0.67 to 0.63, and 50
-items are still below half their share, which this floor does not rule out.
-It even widens the gap between user groups, as group 3 drops to a lift of 0.81
-(code Table~22). The floor at half the fair share changes much more. No item
-is starved, the share of the top three items falls from 41\% to 17\%, the
-Gini halves to 0.35, and exposure follows merit more closely (rank
-correlation 0.54 against 0.24). Every group now gains on Random (lifts 1.08
-to 1.33). The price is about 0.13 percentage points of CTR, from 0.57\% to
-0.44\%, which still leaves the policy above TS and Random. Per group TS with
-borrowing, however, scores better on CTR, Gini and worst group lift (0.49\%,
-0.16 and 1.28), although its gap between groups is wider. For ZOZO the floor
-is a simple guarantee that can be added to any policy. Personalisation is the
-cheaper way to be fair to both sides, but only for \texttt{user\_feature\_0},
-as the next table shows.
+almost nothing and even widens the gap between user groups. The floor at
+half the fair share does much more: no item is starved, the Gini halves,
+exposure follows merit more closely, and every group gains on Random
+(Table~\ref{tab:e}). Its price is about 0.13 percentage points of CTR, which
+still leaves the policy above TS and Random. Per group TS with borrowing does
+better still on CTR, Gini and worst group lift, although its gap between
+groups is wider. For ZOZO the floor is a simple guarantee that can be added
+to any policy, while personalisation is the cheaper way to be fair to both
+sides, but only for \texttt{user\_feature\_0}, as Table~\ref{tab:e4} shows.
 
 The brief asks us to treat all four user features as sensitive variables.
 Table~\ref{tab:e4} repeats the user measures for every feature, with the
 same runs for the policies that ignore the features and a per group TS
 that splits on the feature being judged.
 
-\begin{table}[tb]
+\begin{table}[H]
   \centering
   \caption{Worst group lift over Random and gap between the best and the worst
     group, for every user feature, 80 item file, 5 runs each (code Table~22).
@@ -855,8 +838,8 @@ matched events and fewer than 130 clicks per run, so most differences between
 policies are within one or two standard errors. Once the dependence between
 rows is respected, not even the 52\% lift of UCB is significant: the
 hour-block bootstrap puts it between $-17\%$ and $150\%$. The data support
-the direction, with the tuned policies ahead of Random in 73 to 94\% of
-resamples, but not the size of the gain. Second, replay assumes independent
+the direction, with the tuned policies ahead of Random in most resamples,
+but not the size of the gain. Second, replay assumes independent
 events, and the streaks in the log break that assumption. They cut the number
 of matched events for deterministic policies, and the shuffled replay
 suggests that they also raise the CTR of policies that stay with one item by
@@ -871,23 +854,23 @@ hashed, so we can say that small groups are served worse, but not who they
 are.
 
 For ZOZOTOWN our advice is to show the items with the highest click rate, in
-any slot, since the slot does not change which items are best. Learn them with a bandit whose exploration is scaled
-to how rare clicks are. We recommend UCB with $c$ between 0.01 and 0.1. With
-$c=0.01$ it lifts the CTR by 52\% over random serving on the 80 item file,
-but that setting was chosen on the same week, so the lift is optimistic, and
-its bootstrap interval is wide. The
-fairer check supports the range: $c=0.1$, chosen on days 1 and 2 only,
-scores 0.502\% on days 3 to 7 against 0.424\% for the default $c=1$ and
-0.378\% for Random (code Table~17). The textbook settings of both algorithms
-stay close to random. TS is the safer choice when settings cannot be tuned in
-advance or updates arrive in large batches, and it spreads exposure more
-evenly over items and user groups. If UCB is used, an exposure floor of
-half the fair share keeps every item visible, at a cost of about 0.13
-percentage points of CTR. Group models that borrow from the pooled
-model add clicks where groups are large. The item ranking was stable within
-the week, so there is no need to forget old data, but a production system
-should monitor the ranking and switch to a forgetting policy once it starts
-to move.
+any slot, since the slot does not change which items are best, and to learn
+them with a bandit whose exploration is scaled to how rare clicks are. The
+textbook settings of both algorithms stay close to random, so we recommend
+UCB with $c$ between 0.01 and 0.1. With $c=0.01$ it lifts the CTR by 52\%
+over random serving on the 80 item file, although that setting was chosen
+on the same week, so the figure is optimistic and its bootstrap interval is
+wide. The out of sample check supports the range: $c=0.1$, chosen on the
+first two days only, still beats the default and Random on the remaining
+five (Section~\ref{sec:c}). TS is the safer choice when settings cannot be
+tuned in advance or updates arrive in large batches, and it spreads exposure
+more evenly over items and user groups. If UCB is used, an exposure floor of
+half the fair share keeps every item visible at a cost of about 0.13
+percentage points of CTR, and group models that borrow from the pooled model
+add clicks where groups are large. The item ranking was stable within the
+week, so there is no need to forget old data, but a production system should
+monitor the ranking and switch to a forgetting policy once it starts to
+move.
 
 \begin{thebibliography}{9}
 \setlength{\itemsep}{2pt}
